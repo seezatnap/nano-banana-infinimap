@@ -10,7 +10,7 @@ An experimental AI-powered infinite map generator that creates seamless, neighbo
 
 This is an experiment I made to test Nano Banana's ability to consistently infill, plus how to handle minor differences in renders by blending outputs.
 The solution I hit on was to break the image up into many tiles, of which a 3x3 grid of tiles can fit comfily into Gemini's input limits. I then radially blend the generations with the previous tiles (if one exists at that position) to handle minor differences.
-You can use it to generate gigantic maps at a reasonable cost (or within Gemini's free tier).
+You can use it to generate gigantic, continuous maps at a reasonable cost.
 
 ## Caveats
 
