@@ -1,0 +1,12 @@
+{
+  "name": "islands-v1",
+  "palette": {
+    "deep": "#143C82",
+    "shallow": "#1E5AA0",
+    "beach": "#F0E6B4",
+    "grass": "#328C3C",
+    "hills": "#5B503C",
+    "snow": "#E6E6E6"
+  },
+  "model": { "sampler": "dpmpp_2m", "steps": 25, "cfg": 5.5 }
+}

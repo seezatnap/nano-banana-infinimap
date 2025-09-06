@@ -1,0 +1,42 @@
+{
+  "name": "infinimap",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "regen:parents": "node scripts/regen-parents.cjs"
+  },
+  "dependencies": {
+    "@google/genai": "^1.16.0",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@radix-ui/themes": "^3.2.1",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.542.0",
+    "next": "^15.5.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-leaflet": "^5.0.0",
+    "sharp": "^0.34.3",
+    "uuid": "^11.1.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "@tailwindcss/postcss": "^4.1.12",
+    "@types/leaflet": "^1.9.20",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.34.0",
+    "eslint-config-next": "^15.5.2",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.12",
+    "typescript": "^5.9.2"
+  }
+}

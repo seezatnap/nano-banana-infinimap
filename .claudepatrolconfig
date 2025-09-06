@@ -1,0 +1,5 @@
+{
+  "prompt": "Create documentation for the folders: app, components, lib, scripts. In each describing the purpose of each file. If it contains react components, describe the various elements being displayedin plain english. Be verbose and specific about what is being displayed and how it is being displayed.",
+  "checkInterval": 60,
+  "excludePatterns": ["node_modules/**"]
+}
