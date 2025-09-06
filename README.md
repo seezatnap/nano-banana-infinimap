@@ -4,7 +4,7 @@ An experimental AI-powered infinite map generator that creates seamless, neighbo
 
 **⚠️ Experimental Software**: This project is in active development and should be used at your own risk.
 
-<img width="1466" height="537" alt="Screenshot 2025-09-06 at 2 53 34 PM" src="https://github.com/user-attachments/assets/59d0f5b7-f068-4274-be0d-466f3f50fd55" />
+<img width="1502" height="510" alt="image" src="https://github.com/user-attachments/assets/45c19d3b-5f6a-44cc-a085-a51693f9250b" />
 
 ## TL;DR
 
