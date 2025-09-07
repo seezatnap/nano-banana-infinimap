@@ -29,6 +29,9 @@ export default function MapClient() {
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       if (!selectedTileRef.current) return;
+      // Ignore clicks inside any open modal dialog content
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('[data-dialog-root]')) return;
       if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
       setSelectedTile(null);
       selectedTileRef.current = null;

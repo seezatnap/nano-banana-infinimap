@@ -250,10 +250,10 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={handleClose}>
+    <Dialog.Root open={open} onOpenChange={(next) => { if (!next) handleClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000]" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl p-0 w-[min(100vw,800px)] max-h-[90vh] overflow-auto z-[10001]">
+        <Dialog.Content data-dialog-root className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl p-0 w-[min(100vw,800px)] max-h-[90vh] overflow-auto z-[10001]">
           <div className="flex flex-col h-full">
             <div className="px-4 pt-4">
               <Dialog.Title className="text-lg">Generate Preview</Dialog.Title>
