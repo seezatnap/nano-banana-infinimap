@@ -2,7 +2,7 @@
 
 An experimental AI-powered infinite map generator that creates seamless, neighbor-aware tiles on demand.
 
-**⚠️ Experimental Software**: This project is in active development and should be used at your own risk.
+**⚠️ Experimental Software**: This project is an experimental demonstration of the Gemini Nano Banana model's potential and should be used at your own risk.
 
 <img width="1502" height="510" alt="image" src="https://github.com/user-attachments/assets/45c19d3b-5f6a-44cc-a085-a51693f9250b" />
 
@@ -37,7 +37,7 @@ You can use it to generate gigantic, continuous maps at a reasonable cost.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/infinimap.git
+git clone https://github.com/seezatnap/infinimap.git
 cd infinimap
 ```
 
@@ -71,16 +71,17 @@ yarn dev
 2. **Generate Your First Tile**: 
    - Zoom in to the maximum level (level 8)
    - Enter a prompt like "isometric video game island" or "ancient temple ruins"
-   - Click on any empty tile to generate it
-3. **Explore**: Generated tiles are neighbor-aware, creating seamless transitions between areas
-4. **Regenerate**: Right-click existing tiles to regenerate or edit them
+   - Click on any empty tile to bring up the tile menu
+3. **Explore**: Generate more tiles to extend your canvas
+   - New tiles blend into old tiles, and you can either accept or reject them if it causes the older tiles to degrade
+   - Nano Banana isn't perfect, so you may need to re-roll a few times to get a good match for your existing tiles
+5. **Regenerate**: Click on existing tiles to regenerate, edit, or delete them
+   - Useful if you get a bad blend or generate a tile with neighbors outside the 3x3 grid. regen it, or delete and make a new one.
 
 ## Development
 
 ```bash
 yarn dev        # Start development server
-yarn build      # Build for production
-yarn start      # Run production build
 ```
 
 ### Project Structure
@@ -104,4 +105,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-This is experimental software. Issues and PRs welcome, but expect breaking changes.
+This is experimental software, and meant as a demonstration of Nano Banana more than an ongoing project. I'll try to fix bugs with the current state, but I'm not likely to accept new features. I encourage you to fork, copy, or vibe on top of this project and make it your own!
