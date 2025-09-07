@@ -12,9 +12,10 @@ interface TileControlsProps {
   onGenerate: (prompt: string) => Promise<void>;
   onRegenerate: (prompt: string) => Promise<void>;
   onDelete: () => Promise<void>;
+  onRefreshTiles?: () => void;
 }
 
-export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate, onDelete }: TileControlsProps) {
+export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate, onDelete, onRefreshTiles }: TileControlsProps) {
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -135,8 +136,13 @@ export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate
         y={y}
         z={z}
         onUpdate={() => {
-          console.log('Generation successful, reloading...');
-          window.location.reload();
+          if (onRefreshTiles) {
+            onRefreshTiles();
+          } else {
+            // Fallback: perform a light tile-layer refresh by forcing a small delay then reloading
+            // This keeps previous behavior if parent does not provide a refresher.
+            setTimeout(() => window.location.reload(), 50);
+          }
         }}
       />
     </div>
