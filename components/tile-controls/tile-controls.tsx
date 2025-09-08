@@ -16,52 +16,24 @@ interface TileControlsProps {
 }
 
 export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate, onDelete, onRefreshTiles }: TileControlsProps) {
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-
-  console.log(`🎨 TILECONTROLS: Component rendered for tile (${x}, ${y}) at zoom ${z} [RENDER #${renderCount.current}]`);
-  console.log(`   Props: exists=${exists}, onDelete=${!!onDelete}, onRefreshTiles=${!!onRefreshTiles}`);
-
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
-    console.log(`🗑️ TILECONTROLS: handleDelete called for tile (${x}, ${y}) at zoom ${z}`);
-    console.log(`   Loading state: ${loading}, Delete dialog open: ${deleteOpen}`);
-    console.log(`   Tile exists: ${exists}`);
-
     setLoading(true);
-    console.log(`   🔄 Set loading to true`);
-
     try {
-      console.log(`   📞 Calling onDelete() function...`);
       await onDelete();
-      console.log(`   ✅ onDelete() completed successfully`);
       setDeleteOpen(false);
-      console.log(`   🔒 Closed delete dialog`);
     } catch (error) {
-      console.error(`   ❌ Failed to delete tile (${x}, ${y}):`, error);
-      console.error(`   Error details:`, error);
+      console.error('Failed to delete tile:', error);
     } finally {
       setLoading(false);
-      console.log(`   🔄 Set loading to false`);
     }
   };
 
   return (
     <div className="flex gap-1">
-      {/* DEBUG: Simple delete button for testing */}
-      <button
-        className="w-7 h-7 rounded border border-orange-700 bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center"
-        title="DEBUG Delete"
-        onClick={() => {
-          console.log(`🔧 DEBUG: Direct delete button clicked for tile (${x}, ${y}) at zoom ${z}`);
-          handleDelete();
-        }}
-      >
-        D
-      </button>
 
       <Tooltip.Provider delayDuration={300}>
         {!exists ? (
@@ -108,22 +80,13 @@ export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate
               </Tooltip.Portal>
             </Tooltip.Root>
 
-            <AlertDialog.Root open={deleteOpen} onOpenChange={(open) => {
-              console.log(`🔒 TILECONTROLS: Delete dialog state changed to: ${open} for tile (${x}, ${y})`);
-              setDeleteOpen(open);
-            }}>
+            <AlertDialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <AlertDialog.Trigger asChild>
                     <button
                       className="w-7 h-7 rounded border border-red-700 bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all hover:scale-110 hover:shadow-lg"
                       title="Delete tile"
-                      onClick={(e) => {
-                        console.log(`🖱️ TILECONTROLS: Delete button clicked for tile (${x}, ${y}) at zoom ${z}`);
-                        console.log(`   Button event:`, e);
-                        console.log(`   Button target:`, e.target);
-                        console.log(`   Current deleteOpen state:`, deleteOpen);
-                      }}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -154,15 +117,7 @@ export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate
                     </AlertDialog.Cancel>
                     <button
                       className="px-4 py-2 rounded text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={(e) => {
-                        console.log(`🎯 TILECONTROLS: Delete confirmation button clicked for tile (${x}, ${y}) at zoom ${z}`);
-                        console.log(`   Event:`, e);
-                        console.log(`   Event type:`, e.type);
-                        console.log(`   Target:`, e.target);
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDelete();
-                      }}
+                      onClick={handleDelete}
                       disabled={loading}
                     >
                       {loading ? "Deleting..." : "Delete"}
