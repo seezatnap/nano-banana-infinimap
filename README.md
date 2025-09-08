@@ -37,8 +37,8 @@ You can use it to generate gigantic, continuous maps at a reasonable cost.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/seezatnap/infinimap.git
-cd infinimap
+git clone https://github.com/seezatnap/nano-banana-infinimap
+cd nano-banana-infinimap
 ```
 
 2. Install dependencies:
