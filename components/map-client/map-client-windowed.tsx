@@ -1,4 +1,5 @@
 "use client";
+
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams as useSearchParamsHook } from "next/navigation";
@@ -7,13 +8,19 @@ import { useTileRefresh } from "../hooks/useTileRefresh";
 import { useMapInteractions } from "../hooks/useMapInteractions";
 import { useMapPolling } from "../hooks/useMapPolling";
 import { TileHighlight } from "../map/tile-highlight";
-import { MapControls } from "../map/map-controls";
-import { CanvasMenu } from "../map/canvas-menu";
 import { TileMenu } from "../map/tile-menu";
 
 const MAX_Z = Number(process.env.NEXT_PUBLIC_ZMAX ?? 8);
 
-export default function MapClient() {
+interface MapClientWindowedProps {
+  onStateChange?: (state: {
+    isMaxZoom: boolean;
+    position: { z: string | null; lat: string | null; lng: string | null };
+    tileExists: Record<string, boolean>;
+  }) => void;
+}
+
+export default function MapClientWindowed({ onStateChange }: MapClientWindowedProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const searchParams = useSearchParamsHook();
@@ -149,12 +156,23 @@ export default function MapClient() {
     });
   }, [map, searchParams, updateURL]);
 
-  const isMaxZoom = map?.getZoom() === MAX_Z;
-  const position = {
-    z: searchParams.get('z'),
-    lat: searchParams.get('lat'),
-    lng: searchParams.get('lng')
-  };
+  // Notify parent of state changes
+  useEffect(() => {
+    if (map && onStateChange) {
+      const isMaxZoom = map.getZoom() === MAX_Z;
+      const position = {
+        z: searchParams.get('z'),
+        lat: searchParams.get('lat'),
+        lng: searchParams.get('lng')
+      };
+
+      onStateChange({
+        isMaxZoom,
+        position,
+        tileExists
+      });
+    }
+  }, [map, searchParams, tileExists, onStateChange]);
 
   const handleCanvasReset = async () => {
     // Clear the tile existence state
@@ -175,14 +193,10 @@ export default function MapClient() {
     }
   };
 
+  const isMaxZoom = map?.getZoom() === MAX_Z;
+
   return (
-    <div className="w-full h-full relative">
-      {/* Map Controls */}
-      <MapControls isMaxZoom={isMaxZoom} position={position} />
-      
-      {/* Canvas Menu */}
-      <CanvasMenu onCanvasReset={handleCanvasReset} />
-      
+    <div className="w-full h-full relative bg-gray-50">
       {/* Tile Highlighting */}
       <TileHighlight 
         hoveredTile={hoveredTile}
@@ -207,10 +221,8 @@ export default function MapClient() {
         />
       )}
       
-      {/* Map Container */}
+      {/* Map Container - takes full available space */}
       <div ref={ref} className="w-full h-full" />
     </div>
   );
 }
-
-

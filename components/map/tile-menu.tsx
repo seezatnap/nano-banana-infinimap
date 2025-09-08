@@ -34,7 +34,7 @@ export const TileMenu = memo(function TileMenu({
         left: tile.screenX,
         top: tile.screenY,
         transform: 'translate(-50%, -50%)',
-        zIndex: 500,
+        zIndex: 1000,
       }}
     >
       <div

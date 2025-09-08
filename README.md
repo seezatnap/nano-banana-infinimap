@@ -79,7 +79,7 @@ yarn dev
    - Glass panel shows current coordinates and zoom level
 
 2. **Generate Your First Tile**: 
-   - Zoom to maximum level (level 8) - tiles become interactive
+   - App starts at maximum zoom level (level 8) - tiles are immediately interactive
    - Hover over empty areas to see tile highlights
    - Click any tile to open the interactive menu
    - Choose "Generate" (green + button) for empty tiles
@@ -95,7 +95,12 @@ yarn dev
    - Delete removes tiles instantly without confirmation
    - Regenerate opens the same preview system for existing content
 
-5. **Tips for Best Results**:
+5. **Canvas Management**:
+   - **Canvas Menu**: Located in top-right corner (⚙️ icon)
+   - **Reset Canvas**: Clears all tiles and data for a fresh start
+   - **Refresh Page**: Reloads the application
+
+6. **Tips for Best Results**:
    - Nano Banana works best with clear, descriptive prompts
    - Use the preview system to avoid bad blends
    - Regenerate tiles that don't match neighboring content
@@ -105,6 +110,16 @@ yarn dev
 
 ```bash
 yarn dev        # Start development server
+```
+
+### Utility Scripts
+
+```bash
+# Reset canvas (clear all tiles and data)
+node scripts/reset-canvas.js
+
+# Create default tile (if missing)
+node scripts/create-default-tile.js
 ```
 
 ## Recent Improvements (v2.0)
@@ -122,6 +137,7 @@ This project has been significantly refactored and improved:
 - **Interactive Previews**: Advanced 3×3 grid with selective tile application
 - **Enhanced Feedback**: Better loading states, error handling, and user guidance
 - **Keyboard Shortcuts**: ⌘+Enter to generate, improved accessibility
+- **Canvas Management**: Easy reset functionality with confirmation dialog
 
 ### 🚀 **Developer Experience**
 - **Modular Components**: Easy to maintain and extend
