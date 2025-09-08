@@ -297,7 +297,7 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
               {/* Tabs: Original vs Preview */}
               <div className="space-y-2">
                 <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items中心 justify-between">
                     <span className="text-xs font-medium">Image View</span>
                   <div className="flex items-center gap-2">
                       <Tabs.List className="rounded-xl text-xs border overflow-hidden">
@@ -475,3 +475,5 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
     </Dialog.Root>
   );
 }
+
+

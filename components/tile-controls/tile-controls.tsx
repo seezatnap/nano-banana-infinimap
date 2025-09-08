@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { TileGenerateModal } from "./TileGenerateModal";
+import { TileGenerateModal } from "../tile-generate-modal/tile-generate-modal";
 
 interface TileControlsProps {
   x: number;
@@ -195,3 +195,5 @@ export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate
     </div>
   );
 }
+
+

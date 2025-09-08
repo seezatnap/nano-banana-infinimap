@@ -11,6 +11,6 @@ export default function Page() {
 }
 
 async function ClientBoundary() {
-  const MapClient = (await import("@/components/MapClient")).default;
+  const MapClient = (await import("@/components/map-client/map-client")).default;
   return <MapClient />;
 }

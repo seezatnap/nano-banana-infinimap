@@ -3,8 +3,10 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams as useSearchParamsHook } from "next/navigation";
 import dynamic from "next/dynamic";
+import { useUrlState } from "../hooks/useUrlState";
+import { useTileRefresh } from "../hooks/useTileRefresh";
 
-const TileControls = dynamic(() => import("./TileControls"), { ssr: false });
+const TileControls = dynamic(() => import("../tile-controls/tile-controls"), { ssr: false });
 
 const MAX_Z = Number(process.env.NEXT_PUBLIC_ZMAX ?? 8);
 
@@ -20,6 +22,8 @@ export default function MapClient() {
   const router = useRouter();
   const searchParams = useSearchParamsHook();
   const updateTimeoutRef = useRef<any>(undefined);
+  const { updateURL } = useUrlState();
+  const { refreshVisibleTiles } = useTileRefresh(map);
 
   useEffect(() => {
     selectedTileRef.current = selectedTile;
@@ -42,25 +46,7 @@ export default function MapClient() {
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, []);
 
-  // Update URL with debouncing
-  const updateURL = useCallback((m: any) => {
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    
-    updateTimeoutRef.current = window.setTimeout(() => {
-      const center = m.getCenter();
-      const zoom = m.getZoom();
-      const params = new URLSearchParams();
-      params.set('z', zoom.toString());
-      params.set('lat', center.lat.toFixed(6));
-      params.set('lng', center.lng.toFixed(6));
-      
-      // Update URL without triggering navigation
-      const newURL = `${window.location.pathname}?${params.toString()}`;
-      window.history.replaceState({}, '', newURL);
-    }, 300); // Debounce for 300ms
-  }, []);
+  // Update URL with debouncing (moved to hook, kept ref for compatibility)
 
   // Check if a tile exists
   const checkTileExists = useCallback(async (x: number, y: number) => {
@@ -108,6 +94,7 @@ export default function MapClient() {
         body: JSON.stringify({ prompt })
       });
       
+    
       if (response.ok) {
         // Start polling for completion
         if (map) {
@@ -122,41 +109,7 @@ export default function MapClient() {
     }
   }, [map]);
 
-  // Refresh currently visible tiles with a cache-busting URL template.
-  const refreshVisibleTiles = useCallback(async () => {
-    if (!map) {
-      console.log(`⚠️ Cannot refresh tiles: map not initialized`);
-      return;
-    }
-
-    console.log(`🔄 Refreshing visible tiles...`);
-    const tileLayer = (map as any)?._tileLayer;
-    const ts = Date.now();
-
-    if (tileLayer?.setUrl) {
-      console.log(`📡 Updating existing tile layer URL with cache buster: ?v=${ts}`);
-      tileLayer.setUrl(`/api/tiles/{z}/{x}/{y}?v=${ts}`);
-      console.log(`✅ Tile layer URL updated`);
-    } else if (tileLayer) {
-      console.log(`🔄 Recreating tile layer (setUrl not available)`);
-      const L = await import('leaflet');
-      (map as any).removeLayer(tileLayer);
-      const newTileLayer = L.tileLayer(`/api/tiles/{z}/{x}/{y}?v=${ts}`, {
-        tileSize: 256,
-        minZoom: 0,
-        maxZoom: MAX_Z,
-        noWrap: true,
-        updateWhenIdle: false,
-        updateWhenZooming: false,
-        keepBuffer: 0
-      });
-      newTileLayer.addTo(map as any);
-      (map as any)._tileLayer = newTileLayer;
-      console.log(`✅ New tile layer added to map`);
-    } else {
-      console.log(`⚠️ No tile layer found to refresh`);
-    }
-  }, [map]);
+  // Refresh handled by useTileRefresh hook
 
   // Handle tile deletion
   const handleDelete = useCallback(async (x: number, y: number) => {
@@ -536,3 +489,5 @@ export default function MapClient() {
     </div>
   );
 }
+
+
