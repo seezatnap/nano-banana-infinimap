@@ -5,12 +5,82 @@ import { db } from "./adapters/db.file";
 import { blake2sHex, hashTilePayload } from "./hashing";
 import { loadStyleControl } from "./style";
 import ai from "./gemini";
+import fs from "node:fs/promises";
 
 type NeighborDir = "N" | "S" | "E" | "W" | "NE" | "NW" | "SE" | "SW";
 const dirs: [NeighborDir, number, number][] = [
   ["N", 0, -1], ["S", 0, 1], ["E", 1, 0], ["W", -1, 0],
   ["NE", 1, -1], ["NW", -1, -1], ["SE", 1, 1], ["SW", -1, 1],
 ];
+
+const GRID_SIZE = TILE * 3; // 768x768
+const MODEL_NAME = 'gemini-2.5-flash-image-preview';
+const DEBUG_MODE = (process.env.DEBUG_GENERATION ?? '1') !== '0';
+
+const neighborPositions: { [key in NeighborDir]: { x: number, y: number } } = {
+  'NW': { x: 0, y: 0 }, 'N': { x: TILE, y: 0 }, 'NE': { x: TILE * 2, y: 0 },
+  'W': { x: 0, y: TILE }, 'E': { x: TILE * 2, y: TILE },
+  'SW': { x: 0, y: TILE * 2 }, 'S': { x: TILE, y: TILE * 2 }, 'SE': { x: TILE * 2, y: TILE * 2 }
+};
+
+function buildCheckerboardSvg(gridSize: number, checkerSize = 16) {
+  const lightGrey = { r: 200, g: 200, b: 200 };
+  const white = { r: 255, g: 255, b: 255 };
+  return `
+      <svg width="${gridSize}" height="${gridSize}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="checkerboard" x="0" y="0" width="${checkerSize * 2}" height="${checkerSize * 2}" patternUnits="userSpaceOnUse">
+            <rect x="0" y="0" width="${checkerSize}" height="${checkerSize}" fill="rgb(${white.r},${white.g},${white.b})" />
+            <rect x="${checkerSize}" y="0" width="${checkerSize}" height="${checkerSize}" fill="rgb(${lightGrey.r},${lightGrey.g},${lightGrey.b})" />
+            <rect x="0" y="${checkerSize}" width="${checkerSize}" height="${checkerSize}" fill="rgb(${lightGrey.r},${lightGrey.g},${lightGrey.b})" />
+            <rect x="${checkerSize}" y="${checkerSize}" width="${checkerSize}" height="${checkerSize}" fill="rgb(${white.r},${white.g},${white.b})" />
+          </pattern>
+        </defs>
+        <rect width="${gridSize}" height="${gridSize}" fill="url(#checkerboard)" />
+      </svg>
+    `;
+}
+
+async function ensureDebugDir() {
+  if (!DEBUG_MODE) return;
+  await fs.mkdir('.debug', { recursive: true }).catch(() => {});
+}
+
+async function composeNeighborGrid(neighbors: { dir: NeighborDir, buf: Buffer | null }[]) {
+  console.log('  Building composite layers with neighbors...');
+  const checkerboardSvg = buildCheckerboardSvg(GRID_SIZE);
+  // Create the canvas with checkerboard background
+  const canvas = sharp(Buffer.from(checkerboardSvg));
+  console.log('  Created 768x768 checkerboard canvas');
+
+  // Add existing neighbors
+  const neighborCount = neighbors.filter(n => n.buf !== null).length;
+  console.log('  Neighbors with content:', neighborCount);
+
+  const compositeImages: sharp.OverlayOptions[] = [];
+  for (const n of neighbors) {
+    if (n.buf) {
+      const pos = neighborPositions[n.dir];
+      if (pos) {
+        const resized = await sharp(n.buf).resize(TILE, TILE, { fit: 'fill' }).toBuffer();
+        compositeImages.push({ input: resized, left: pos.x, top: pos.y });
+      }
+    }
+  }
+
+  // Create the composite grid
+  console.log(`  Composing ${compositeImages.length} neighbor tiles onto canvas`);
+  const gridImage = await canvas.composite(compositeImages).png().toBuffer();
+  console.log(`  ✅ Created 3x3 grid context image: ${gridImage.length} bytes`);
+  return gridImage;
+}
+
+function buildFullPrompt(styleName: string, prompt: string) {
+  return `complete image. do not modify existing art's position or content.
+
+Style: ${styleName}
+Additional context: ${prompt || 'tropical islands with beaches and ocean'}`;
+}
 
 async function getNeighbors(z: number, x: number, y: number) {
   console.log(`🔍 Gathering neighbors for z:${z} x:${x} y:${y}`);
@@ -39,76 +109,12 @@ async function runModel(input: {
 
   try {
     // Create a 3x3 grid (768x768) with the center marked for generation
-    const gridSize = TILE * 3; // 768x768
-
-    // Create a checkerboard pattern for unknown areas
-    const checkerSize = 16; // Size of each checker square
-    const lightGrey = { r: 200, g: 200, b: 200 };
-    const white = { r: 255, g: 255, b: 255 };
-
-    // Create checkerboard pattern using SVG
-    const checkerboardSvg = `
-      <svg width="${gridSize}" height="${gridSize}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <pattern id="checkerboard" x="0" y="0" width="${checkerSize * 2}" height="${checkerSize * 2}" patternUnits="userSpaceOnUse">
-            <rect x="0" y="0" width="${checkerSize}" height="${checkerSize}" fill="rgb(${white.r},${white.g},${white.b})" />
-            <rect x="${checkerSize}" y="0" width="${checkerSize}" height="${checkerSize}" fill="rgb(${lightGrey.r},${lightGrey.g},${lightGrey.b})" />
-            <rect x="0" y="${checkerSize}" width="${checkerSize}" height="${checkerSize}" fill="rgb(${lightGrey.r},${lightGrey.g},${lightGrey.b})" />
-            <rect x="${checkerSize}" y="${checkerSize}" width="${checkerSize}" height="${checkerSize}" fill="rgb(${white.r},${white.g},${white.b})" />
-          </pattern>
-        </defs>
-        <rect width="${gridSize}" height="${gridSize}" fill="url(#checkerboard)" />
-      </svg>
-    `;
-
-    // Create the canvas with checkerboard background
-    const canvas = sharp(Buffer.from(checkerboardSvg));
-    console.log('  Created 768x768 checkerboard canvas');
-
-    // Build the composite layers
-    const compositeImages: sharp.OverlayOptions[] = [];
-    console.log('  Building composite layers with neighbors...');
-
-    // Center stays black (no green square needed)
-
-    // Map neighbors to grid positions
-    const neighborPositions: { [key: string]: { x: number, y: number } } = {
-      'NW': { x: 0, y: 0 }, 'N': { x: TILE, y: 0 }, 'NE': { x: TILE * 2, y: 0 },
-      'W': { x: 0, y: TILE },    /* CENTER */                'E': { x: TILE * 2, y: TILE },
-      'SW': { x: 0, y: TILE * 2 }, 'S': { x: TILE, y: TILE * 2 }, 'SE': { x: TILE * 2, y: TILE * 2 }
-    };
-
-    // Add existing neighbors
-    const neighborCount = input.neighbors.filter(n => n.buf !== null).length;
-    console.log('  Neighbors with content:', neighborCount);
-
-    for (const n of input.neighbors) {
-      if (n.buf && neighborPositions[n.dir]) {
-        const pos = neighborPositions[n.dir];
-        // Ensure neighbor is exactly 256x256
-        const resized = await sharp(n.buf)
-          .resize(TILE, TILE, { fit: 'fill' })
-          .toBuffer();
-        compositeImages.push({
-          input: resized,
-          left: pos.x,
-          top: pos.y
-        });
-      }
-    }
-
-    // Create the composite grid
-    console.log(`  Composing ${compositeImages.length} neighbor tiles onto canvas`);
-    const gridImage = await canvas
-      .composite(compositeImages)
-      .png()
-      .toBuffer();
-
-    console.log(`  ✅ Created 3x3 grid context image: ${gridImage.length} bytes`);
+    const gridSize = GRID_SIZE;
+    const gridImage = await composeNeighborGrid(input.neighbors);
 
     // Debug: Save the grid (enable for debugging)
-    const DEBUG_MODE = true; // Set to true to save debug images
     if (DEBUG_MODE) {
+      await ensureDebugDir();
       await sharp(gridImage).toFile(`.debug/debug-grid-${input.seedHex}.png`);
       console.log(`  Saved debug grid: .debug/debug-grid-${input.seedHex}.png`);
     }
@@ -117,10 +123,7 @@ async function runModel(input: {
     const gridBase64 = gridImage.toString('base64');
 
     // Build the prompt
-    const fullPrompt = `complete image. do not modify existing art's position or content.
-
-Style: ${input.styleName}
-Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}`;
+    const fullPrompt = buildFullPrompt(input.styleName, input.prompt);
 
     console.log('  📝 Full prompt prepared:', fullPrompt.substring(0, 100) + '...');
 
@@ -143,7 +146,7 @@ Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}
       responseModalities: ['IMAGE'],
     };
 
-    const model = 'gemini-2.5-flash-image-preview';
+    const model = MODEL_NAME;
     console.log(`  🌐 Calling Gemini API with model: ${model}`);
     console.log(`  📊 Request payload size: ${gridBase64.length} chars for context image`);
     const startTime = Date.now();
@@ -212,6 +215,7 @@ Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}
 
     // Debug: Save the response
     if (DEBUG_MODE) {
+      await ensureDebugDir();
       await sharp(imgBuffer).toFile(`.debug/debug-response-${input.seedHex}.png`);
       console.log(`  Saved debug response: .debug/debug-response-${input.seedHex}.png`);
     }
@@ -355,47 +359,10 @@ export async function generateGridPreview(z: number, x: number, y: number, promp
 
   try {
     // Reuse the same request building as runModel but return the full grid image.
-    const gridSize = TILE * 3;
-
-    // Checkerboard background so the model has context even when neighbors are missing
-    const checkerSize = 16;
-    const lightGrey = { r: 200, g: 200, b: 200 };
-    const white = { r: 255, g: 255, b: 255 };
-    const checkerboardSvg = `
-      <svg width="${gridSize}" height="${gridSize}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <pattern id="checkerboard" x="0" y="0" width="${checkerSize * 2}" height="${checkerSize * 2}" patternUnits="userSpaceOnUse">
-            <rect x="0" y="0" width="${checkerSize}" height="${checkerSize}" fill="rgb(${white.r},${white.g},${white.b})" />
-            <rect x="${checkerSize}" y="0" width="${checkerSize}" height="${checkerSize}" fill="rgb(${lightGrey.r},${lightGrey.g},${lightGrey.b})" />
-            <rect x="0" y="${checkerSize}" width="${checkerSize}" height="${checkerSize}" fill="rgb(${lightGrey.r},${lightGrey.g},${lightGrey.b})" />
-            <rect x="${checkerSize}" y="${checkerSize}" width="${checkerSize}" height="${checkerSize}" fill="rgb(${white.r},${white.g},${white.b})" />
-          </pattern>
-        </defs>
-        <rect width="${gridSize}" height="${gridSize}" fill="url(#checkerboard)" />
-      </svg>
-    `;
-
-    const canvas = sharp(Buffer.from(checkerboardSvg));
-
-    const neighborPositions: { [key: string]: { x: number, y: number } } = {
-      'NW': { x: 0, y: 0 }, 'N': { x: TILE, y: 0 }, 'NE': { x: TILE * 2, y: 0 },
-      'W': { x: 0, y: TILE }, 'E': { x: TILE * 2, y: TILE },
-      'SW': { x: 0, y: TILE * 2 }, 'S': { x: TILE, y: TILE * 2 }, 'SE': { x: TILE * 2, y: TILE * 2 }
-    };
-
-    const compositeImages: sharp.OverlayOptions[] = [];
-    for (const n of neighbors) {
-      if (n.buf && neighborPositions[n.dir]) {
-        const pos = neighborPositions[n.dir];
-        const resized = await sharp(n.buf).resize(TILE, TILE, { fit: 'fill' }).toBuffer();
-        compositeImages.push({ input: resized, left: pos.x, top: pos.y });
-      }
-    }
-
-    const gridContext = await canvas.composite(compositeImages).png().toBuffer();
+    const gridContext = await composeNeighborGrid(neighbors);
 
     // Send the full grid to the model
-    const fullPrompt = `complete image. do not modify existing art's position or content.\n\nStyle: ${styleName}\nAdditional context: ${prompt}`;
+    const fullPrompt = buildFullPrompt(styleName, prompt);
     const contents = [{
       role: 'user',
       parts: [
@@ -405,7 +372,7 @@ export async function generateGridPreview(z: number, x: number, y: number, promp
     }];
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash-image-preview',
+      model: MODEL_NAME,
       config: { responseModalities: ['IMAGE'] },
       contents,
     });
@@ -428,9 +395,9 @@ export async function generateGridPreview(z: number, x: number, y: number, promp
 
     // Normalize to 768×768 and WebP
     const meta = await sharp(imgBuffer).metadata();
-    if (meta.width !== gridSize || meta.height !== gridSize) {
+    if (meta.width !== GRID_SIZE || meta.height !== GRID_SIZE) {
       // @ts-expect-error TODO: fix types
-      imgBuffer = await sharp(imgBuffer).resize(gridSize, gridSize, { fit: 'fill' }).toBuffer();
+      imgBuffer = await sharp(imgBuffer).resize(GRID_SIZE, GRID_SIZE, { fit: 'fill' }).toBuffer();
     }
     return await sharp(imgBuffer).webp({ quality: 90 }).toBuffer();
   } catch (err) {
