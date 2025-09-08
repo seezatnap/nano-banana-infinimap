@@ -160,24 +160,52 @@ export default function MapClient() {
 
   // Handle tile deletion
   const handleDelete = useCallback(async (x: number, y: number) => {
+    console.log(`🚀 MAPCLIENT: handleDelete called with coordinates (${x}, ${y})`);
+    console.log(`   Map object exists: ${!!map}`);
+    console.log(`   MAX_Z value: ${MAX_Z}`);
+
     try {
       console.log(`🗑️ Deleting tile at ${MAX_Z}/${x}/${y}`);
-      const response = await fetch(`/api/delete/${MAX_Z}/${x}/${y}`, {
+      const deleteUrl = `/api/delete/${MAX_Z}/${x}/${y}`;
+      console.log(`   🌐 Making DELETE request to: ${deleteUrl}`);
+
+      const response = await fetch(deleteUrl, {
         method: "DELETE"
       });
+
+      console.log(`   📡 DELETE response status: ${response.status} ${response.statusText}`);
 
       if (response.ok) {
         console.log(`✅ Delete API call successful, refreshing tiles`);
         await refreshVisibleTiles();
-        setTileExists(prev => ({ ...prev, [`${x},${y}`]: false }));
+        setTileExists(prev => {
+          const newState = { ...prev, [`${x},${y}`]: false };
+          console.log(`   📊 Updated tileExists state:`, newState);
+          return newState;
+        });
         console.log(`✅ Tile deletion complete`);
       } else {
         console.error(`❌ Delete API call failed with status ${response.status}`);
         const errorText = await response.text();
-        console.error(`   Error details:`, errorText);
+        console.error(`   📄 Error response body:`, errorText);
+
+        // Try to parse JSON error response
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error(`   🔍 Parsed error:`, errorJson);
+        } catch (parseError) {
+          console.log(`   📝 Raw error text:`, errorText);
+        }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Failed to delete tile:", error);
+      if (error instanceof Error) {
+        console.error("   Error type:", error.constructor.name);
+        console.error("   Error message:", error.message);
+        console.error("   Error stack:", error.stack);
+      } else {
+        console.error("   Unknown error type:", typeof error);
+      }
       throw error;
     }
   }, [map, refreshVisibleTiles]);
@@ -318,14 +346,23 @@ export default function MapClient() {
         const p = m.project(e.latlng, m.getZoom());
         const x = Math.floor(p.x / 256);
         const y = Math.floor(p.y / 256);
+        console.log(`🖱️ MAPCLIENT: Click detected at screen coordinates, tile coordinates: (${x}, ${y}) at zoom ${m.getZoom()}`);
+
         const tileCenterWorld = L.point((x + 0.5) * 256, (y + 0.5) * 256);
         const tileCenterLatLng = m.unproject(tileCenterWorld, m.getZoom());
         const tileCenterScreen = m.latLngToContainerPoint(tileCenterLatLng);
+        console.log(`   📍 Setting selected tile: screen(${tileCenterScreen.x}, ${tileCenterScreen.y})`);
+
         setSelectedTile({ x, y, screenX: tileCenterScreen.x, screenY: tileCenterScreen.y });
+        console.log(`   ✅ Selected tile state updated`);
 
         const key = `${x},${y}`;
+        console.log(`   🔍 Checking tile existence for key: ${key}`);
         if (!(key in tileExists)) {
+          console.log(`   🌐 Tile existence not cached, calling checkTileExists`);
           checkTileExists(x, y);
+        } else {
+          console.log(`   📊 Tile existence cached: ${tileExists[key]}`);
         }
       });
 
@@ -468,15 +505,28 @@ export default function MapClient() {
               exists={tileExists[`${selectedTile.x},${selectedTile.y}`] || false}
               onGenerate={(prompt) => handleGenerate(selectedTile.x, selectedTile.y, prompt)}
               onRegenerate={(prompt) => handleRegenerate(selectedTile.x, selectedTile.y, prompt)}
-              onDelete={() => handleDelete(selectedTile.x, selectedTile.y)}
+              onDelete={async () => {
+                console.log(`🎯 MAPCLIENT: onDelete callback triggered for tile (${selectedTile.x}, ${selectedTile.y})`);
+                console.log(`   Callback function exists:`, !!handleDelete);
+                console.log(`   Selected tile:`, selectedTile);
+                try {
+                  const result = await handleDelete(selectedTile.x, selectedTile.y);
+                  console.log(`   HandleDelete result:`, result);
+                  return result;
+                } catch (error) {
+                  console.error(`   HandleDelete error:`, error);
+                  throw error;
+                }
+              }}
               onRefreshTiles={() => {
+                console.log(`🔄 MAPCLIENT: onRefreshTiles callback triggered`);
                 // Delay a moment to ensure filesystem flush and ETag update.
-                setTimeout(() => { 
+                setTimeout(() => {
                   void refreshVisibleTiles();
                   setTileExists(prev => ({ ...prev, [`${selectedTile.x},${selectedTile.y}`]: true }));
                 }, 50);
               }}
-              
+
             />
           </div>
         </div>
