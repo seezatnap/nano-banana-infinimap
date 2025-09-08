@@ -4,7 +4,7 @@ An experimental AI-powered infinite map generator that creates seamless, neighbo
 
 **⚠️ Experimental Software**: This project is an experimental demonstration of the Gemini Nano Banana model's potential and should be used at your own risk.
 
-<img width="1502" height="510" alt="image" src="https://github.com/user-attachments/assets/45c19d3b-5f6a-44cc-a085-a51693f9250b" />
+<img width="1200" height="600" alt="Nano Banana Infinimap - Modern Interface" src="https://github.com/user-attachments/assets/1b6f9319-e0f0-4d54-abad-02761256555c" />
 
 ## TL;DR
 
