@@ -46,7 +46,11 @@ export async function GET(
     
     // Validate ID format to prevent path traversal
     if (!/^preview-\d+-[-\d]+\.webp$/.test(id + '.webp')) {
-      return NextResponse.json({ error: "Invalid preview ID" }, { status: 400 });
+      const response = NextResponse.json({ error: "Invalid preview ID" }, { status: 400 });
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      return response;
     }
     
     const url = new URL(req.url);
@@ -57,13 +61,23 @@ export async function GET(
     try {
       raw = await fs.readFile(previewPath);
     } catch (err) {
-      return NextResponse.json({ error: "Preview not found" }, { status: 404 });
+      const response = NextResponse.json({ error: "Preview not found" }, { status: 404 });
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      return response;
     }
 
     // If raw requested, serve as is
     if (mode !== 'blended') {
       return new NextResponse(raw as any, {
-        headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=60' },
+        headers: {
+          'Content-Type': 'image/webp',
+          'Cache-Control': 'private, max-age=60',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        },
       });
     }
 
@@ -101,10 +115,20 @@ export async function GET(
     }
     const blendedComposite = await composite3x3(output);
     return new NextResponse(blendedComposite as any, {
-      headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=60' },
+      headers: {
+        'Content-Type': 'image/webp',
+        'Cache-Control': 'private, max-age=60',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      },
     });
   } catch (error) {
     console.error("Preview fetch error:", error);
-    return NextResponse.json({ error: "Failed to fetch preview" }, { status: 500 });
+    const response = NextResponse.json({ error: "Failed to fetch preview" }, { status: 500 });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   }
 }

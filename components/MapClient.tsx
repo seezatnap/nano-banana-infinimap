@@ -122,37 +122,29 @@ export default function MapClient() {
     }
   }, [map]);
 
-  // Handle tile deletion
-  const handleDelete = useCallback(async (x: number, y: number) => {
-    try {
-      const response = await fetch(`/api/delete/${MAX_Z}/${x}/${y}`, {
-        method: "DELETE"
-      });
-      
-      if (response.ok) {
-        await refreshVisibleTiles();
-        setTileExists(prev => ({ ...prev, [`${x},${y}`]: false }));
-      }
-    } catch (error) {
-      console.error("Failed to delete tile:", error);
-      throw error;
-    }
-  }, [map]);
-
   // Refresh currently visible tiles with a cache-busting URL template.
   const refreshVisibleTiles = useCallback(async () => {
-    if (!map) return;
+    if (!map) {
+      console.log(`⚠️ Cannot refresh tiles: map not initialized`);
+      return;
+    }
+
+    console.log(`🔄 Refreshing visible tiles...`);
     const tileLayer = (map as any)?._tileLayer;
     const ts = Date.now();
+
     if (tileLayer?.setUrl) {
+      console.log(`📡 Updating existing tile layer URL with cache buster: ?v=${ts}`);
       tileLayer.setUrl(`/api/tiles/{z}/{x}/{y}?v=${ts}`);
+      console.log(`✅ Tile layer URL updated`);
     } else if (tileLayer) {
+      console.log(`🔄 Recreating tile layer (setUrl not available)`);
       const L = await import('leaflet');
       (map as any).removeLayer(tileLayer);
-      const newTileLayer = L.tileLayer(`/api/tiles/{z}/{x}/{y}?v=${ts}`, { 
-        tileSize: 256, 
-        minZoom: 0, 
-        maxZoom: MAX_Z, 
+      const newTileLayer = L.tileLayer(`/api/tiles/{z}/{x}/{y}?v=${ts}`, {
+        tileSize: 256,
+        minZoom: 0,
+        maxZoom: MAX_Z,
         noWrap: true,
         updateWhenIdle: false,
         updateWhenZooming: false,
@@ -160,8 +152,35 @@ export default function MapClient() {
       });
       newTileLayer.addTo(map as any);
       (map as any)._tileLayer = newTileLayer;
+      console.log(`✅ New tile layer added to map`);
+    } else {
+      console.log(`⚠️ No tile layer found to refresh`);
     }
   }, [map]);
+
+  // Handle tile deletion
+  const handleDelete = useCallback(async (x: number, y: number) => {
+    try {
+      console.log(`🗑️ Deleting tile at ${MAX_Z}/${x}/${y}`);
+      const response = await fetch(`/api/delete/${MAX_Z}/${x}/${y}`, {
+        method: "DELETE"
+      });
+
+      if (response.ok) {
+        console.log(`✅ Delete API call successful, refreshing tiles`);
+        await refreshVisibleTiles();
+        setTileExists(prev => ({ ...prev, [`${x},${y}`]: false }));
+        console.log(`✅ Tile deletion complete`);
+      } else {
+        console.error(`❌ Delete API call failed with status ${response.status}`);
+        const errorText = await response.text();
+        console.error(`   Error details:`, errorText);
+      }
+    } catch (error) {
+      console.error("❌ Failed to delete tile:", error);
+      throw error;
+    }
+  }, [map, refreshVisibleTiles]);
 
   useEffect(() => {
     if (!ref.current || map) return;

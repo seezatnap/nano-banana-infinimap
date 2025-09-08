@@ -13,9 +13,14 @@ const dirs: [NeighborDir, number, number][] = [
 ];
 
 async function getNeighbors(z: number, x: number, y: number) {
+  console.log(`🔍 Gathering neighbors for z:${z} x:${x} y:${y}`);
   const out: { dir: NeighborDir, buf: Buffer | null }[] = [];
   for (const [dir, dx, dy] of dirs) {
-    out.push({ dir, buf: await readTileFile(z, x + dx, y + dy) });
+    const neighborX = x + dx;
+    const neighborY = y + dy;
+    const buf = await readTileFile(z, neighborX, neighborY);
+    console.log(`   ${dir} neighbor (${neighborX},${neighborY}): ${buf ? buf.length + ' bytes' : 'not found'}`);
+    out.push({ dir, buf });
   }
   return out;
 }
@@ -58,9 +63,11 @@ async function runModel(input: {
 
     // Create the canvas with checkerboard background
     const canvas = sharp(Buffer.from(checkerboardSvg));
+    console.log('  Created 768x768 checkerboard canvas');
 
     // Build the composite layers
-    const compositeImages: any[] = [];
+    const compositeImages: sharp.OverlayOptions[] = [];
+    console.log('  Building composite layers with neighbors...');
 
     // Center stays black (no green square needed)
 
@@ -91,12 +98,13 @@ async function runModel(input: {
     }
 
     // Create the composite grid
+    console.log(`  Composing ${compositeImages.length} neighbor tiles onto canvas`);
     const gridImage = await canvas
       .composite(compositeImages)
       .png()
       .toBuffer();
 
-    console.log('  Created 3x3 grid context image');
+    console.log(`  ✅ Created 3x3 grid context image: ${gridImage.length} bytes`);
 
     // Debug: Save the grid (enable for debugging)
     const DEBUG_MODE = true; // Set to true to save debug images
@@ -114,7 +122,9 @@ async function runModel(input: {
 Style: ${input.styleName}
 Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}`;
 
-    const userParts: any[] = [
+    console.log('  📝 Full prompt prepared:', fullPrompt.substring(0, 100) + '...');
+
+    const userParts: Array<{text?: string, inlineData?: {data: string, mimeType: string}}> = [
       { text: fullPrompt },
       {
         inlineData: {
@@ -134,8 +144,8 @@ Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}
     };
 
     const model = 'gemini-2.5-flash-image-preview';
-
-    console.log('  Calling Gemini API with model:', model);
+    console.log(`  🌐 Calling Gemini API with model: ${model}`);
+    console.log(`  📊 Request payload size: ${gridBase64.length} chars for context image`);
     const startTime = Date.now();
 
     const response = await ai.models.generateContentStream({
@@ -145,32 +155,46 @@ Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}
     });
 
     let imageBase64: string | null = null;
+    let chunkCount = 0;
 
+    console.log('  📥 Processing streaming response...');
     for await (const chunk of response) {
+      chunkCount++;
+      console.log(`  📦 Processing chunk ${chunkCount}...`);
+
       if (chunk.promptFeedback?.blockReason) {
+        console.error(`  ❌ Content blocked by Gemini: ${chunk.promptFeedback.blockReason}`);
         throw new Error(`Content blocked: ${chunk.promptFeedback.blockReason}`);
       }
 
       if (chunk.candidates && chunk.candidates.length > 0) {
         const candidate = chunk.candidates[0];
+        console.log(`  📋 Candidate finish reason: ${candidate.finishReason || 'IN_PROGRESS'}`);
 
         if (candidate.finishReason === 'SAFETY' || candidate.finishReason === 'PROHIBITED_CONTENT') {
+          console.error(`  ❌ Content blocked: ${candidate.finishReason}`);
           throw new Error(`Content blocked: ${candidate.finishReason}`);
         }
 
         if (candidate.content?.parts) {
+          console.log(`  📄 Processing ${candidate.content.parts.length} content parts`);
           for (const part of candidate.content.parts) {
             if (part.inlineData?.data) {
               imageBase64 = part.inlineData.data;
+              console.log(`  🖼️ Found image data in response chunk, size: ${imageBase64.length} chars`);
               break;
             }
           }
-          if (imageBase64) break;
+          if (imageBase64) {
+            console.log(`  ✅ Complete image received in chunk ${chunkCount}`);
+            break;
+          }
         }
       }
     }
 
     if (!imageBase64) {
+      console.error('  ❌ No image data received from Gemini after processing all chunks');
       throw new Error('No image generated from Gemini');
     }
 
@@ -179,11 +203,12 @@ Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}
 
     // Convert base64 to buffer
     const imgBuffer = Buffer.from(imageBase64, 'base64');
-    console.log(`  Full grid image size: ${imgBuffer.length} bytes`);
+    console.log(`  🔄 Converting base64 response to buffer: ${imgBuffer.length} bytes`);
 
     // Check the actual dimensions of the returned image
     const metadata = await sharp(imgBuffer).metadata();
-    console.log(`  Returned image dimensions: ${metadata.width}x${metadata.height}`);
+    console.log(`  📏 Returned image dimensions: ${metadata.width}x${metadata.height}`);
+    console.log(`  📄 Image format: ${metadata.format}, channels: ${metadata.channels}`);
 
     // Debug: Save the response
     if (DEBUG_MODE) {
@@ -215,18 +240,24 @@ Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}
     }
 
     // Extract and resize the center tile
-    const centerTile = await sharp(imgBuffer)
+    console.log(`  ✂️ Extracting center tile from (${extractLeft}, ${extractTop}) with size ${extractWidth}x${extractHeight}`);
+    const extractedBuffer = await sharp(imgBuffer)
       .extract({
         left: extractLeft,
         top: extractTop,
         width: extractWidth,
         height: extractHeight
       })
+      .toBuffer();
+
+    console.log(`  📐 Extracted buffer size: ${extractedBuffer.length} bytes`);
+
+    const centerTile = await sharp(extractedBuffer)
       .resize(TILE, TILE, { kernel: 'lanczos3' }) // Ensure final size is always 256x256
       .webp({ quality: 90 })
       .toBuffer();
 
-    console.log(`  Extracted center tile: ${centerTile.length} bytes`);
+    console.log(`  🎯 Final center tile: ${centerTile.length} bytes (256x256 WebP)`);
     return centerTile;
   } catch (error) {
     console.error('❌ Gemini generation error:', error);
@@ -243,6 +274,9 @@ async function runModelStub(input: {
   neighbors: { dir: NeighborDir, buf: Buffer | null }[];
   seedHex: string;
 }): Promise<Buffer> {
+  console.log('  🔧 Using stub generator as fallback');
+  console.log(`  🎨 Creating base tile with seed-based color: ${input.seedHex.slice(0, 6)}`);
+
   const base = sharp({
     create: {
       width: TILE, height: TILE, channels: 3,
@@ -251,20 +285,32 @@ async function runModelStub(input: {
   }).png();
 
   let img = await base.toBuffer();
+  console.log(`  📦 Base tile created: ${img.length} bytes`);
 
   const overlays: Buffer[] = [];
+  let neighborOverlayCount = 0;
+
   for (const n of input.neighbors) {
     if (!n.buf) continue;
+    console.log(`  ➕ Adding overlay for ${n.dir} neighbor`);
     const line = Buffer.from(
       `<svg width="${TILE}" height="${TILE}"><rect ${edgeRect(n.dir)} fill="#ffffff" fill-opacity="0.15"/></svg>`
     );
     overlays.push(await sharp(line).png().toBuffer());
+    neighborOverlayCount++;
   }
 
   if (overlays.length) {
+    console.log(`  🔗 Composing ${neighborOverlayCount} neighbor overlays`);
     img = await sharp(img).composite(overlays.map(o => ({ input: o }))).toBuffer();
+    console.log(`  📦 Composite image: ${img.length} bytes`);
+  } else {
+    console.log('  ℹ️ No neighbor overlays to apply');
   }
-  return await sharp(img).webp({ quality: 90 }).toBuffer();
+
+  const finalTile = await sharp(img).webp({ quality: 90 }).toBuffer();
+  console.log(`  ✅ Stub tile completed: ${finalTile.length} bytes (WebP)`);
+  return finalTile;
 }
 
 function edgeRect(dir: NeighborDir): string {

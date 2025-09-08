@@ -123,32 +123,62 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ z: string; x: string; y: string }> }
 ) {
+  console.log(`\n🎨 EDIT-TILE API: Received preview request`);
+
   try {
     const params = await context.params;
     const z = parseInt(params.z, 10);
     const x = parseInt(params.x, 10);
     const y = parseInt(params.y, 10);
-    
+    console.log(`   Target tile: z:${z} x:${x} y:${y}`);
+
     const body = await req.json();
+    console.log(`   Request body received, size: ${JSON.stringify(body).length} chars`);
+
     const { prompt } = requestSchema.parse(body);
-    
+    console.log(`   User prompt: "${prompt}"`);
+
     // Ask the generator for a full 3×3 composite (RAW model output)
+    console.log(`   🔄 Starting grid preview generation...`);
+    const startTime = Date.now();
+
     const finalComposite = await generateGridPreview(z, x, y, prompt);
-    
+
+    const generationTime = Date.now() - startTime;
+    console.log(`   ✅ Grid preview generated in ${generationTime}ms, size: ${finalComposite.length} bytes`);
+
     // Save preview to temporary location
     const tempDir = path.join(process.cwd(), '.temp');
+    console.log(`   💾 Creating temp directory: ${tempDir}`);
     await fs.mkdir(tempDir, { recursive: true });
-    
+
     const previewId = `preview-${z}-${x}-${y}-${Date.now()}`;
     const previewPath = path.join(tempDir, `${previewId}.webp`);
+    console.log(`   📝 Saving preview as: ${previewPath}`);
+
     await fs.writeFile(previewPath, finalComposite);
-    
-    return NextResponse.json({ previewUrl: `/api/preview/${previewId}`, previewId });
+    console.log(`   ✅ Preview saved successfully`);
+
+    const responseData = { previewUrl: `/api/preview/${previewId}`, previewId };
+    console.log(`   🎯 Returning preview URL: ${responseData.previewUrl}`);
+    console.log(`   ✨ Edit-tile API request completed successfully\n`);
+
+    const response = NextResponse.json(responseData);
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   } catch (error) {
-    console.error("Edit tile error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to edit tile" },
+    console.error(`   ❌ Edit-tile error:`, error);
+    const errorResponse = error instanceof Error ? error.message : "Failed to edit tile";
+    console.log(`   🚨 Returning error response: ${errorResponse}`);
+    const response = NextResponse.json(
+      { error: errorResponse },
       { status: 500 }
     );
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   }
 }

@@ -15,15 +15,29 @@ export async function POST(req: NextRequest, { params }:{params:Promise<{z:strin
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
     const firstError = parsed.error.issues[0];
-    return NextResponse.json({ error: firstError?.message || 'Invalid input' }, { status: 400 });
+    const response = NextResponse.json({ error: firstError?.message || 'Invalid input' }, { status: 400 });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   }
   const { prompt } = parsed.data;
-  
+
   const t = await db.getTile(z,x,y);
-  if (!t) return NextResponse.json({ error:"Tile not found" }, { status:404 });
+  if (!t) {
+    const response = NextResponse.json({ error:"Tile not found" }, { status:404 });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
+  }
 
   await db.updateTile(z,x,y, { status:"PENDING", contentVer:(t.contentVer??0)+1 });
   await fileQueue.enqueue(`regen-${z}-${x}-${y}`, { z,x,y,prompt });
 
-  return NextResponse.json({ ok:true });
+  const response = NextResponse.json({ ok:true });
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return response;
 }

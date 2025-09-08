@@ -12,7 +12,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ z
   console.log(`🗑️ DELETE request for tile z:${z} x:${x} y:${y}`);
   
   if (z !== ZMAX) {
-    return NextResponse.json({ error: "Only max zoom tiles can be deleted" }, { status: 400 });
+    const response = NextResponse.json({ error: "Only max zoom tiles can be deleted" }, { status: 400 });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   }
 
   try {
@@ -50,12 +54,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ z
     })().catch(() => {});
     
     console.log(`   ✅ Tile deleted successfully`);
-    return NextResponse.json({ ok: true, message: "Tile deleted" });
+    const response = NextResponse.json({ ok: true, message: "Tile deleted" });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   } catch (error) {
     console.error(`Failed to delete tile ${z}/${x}/${y}:`, error);
-    return NextResponse.json({ 
-      error: "Failed to delete tile", 
-      details: error instanceof Error ? error.message : "Unknown error" 
+    const response = NextResponse.json({
+      error: "Failed to delete tile",
+      details: error instanceof Error ? error.message : "Unknown error"
     }, { status: 500 });
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
   }
 }
