@@ -26,7 +26,10 @@ export async function GET(_req: NextRequest, { params }:{params:Promise<{z:strin
     headers: {
       "Content-Type":"image/webp",
       "Cache-Control":"public, max-age=31536000, immutable",
-      "ETag": etag
+      "ETag": etag,
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization"
     }
   });
 }

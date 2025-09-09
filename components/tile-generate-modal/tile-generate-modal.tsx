@@ -1,0 +1,1 @@
+export { TileGenerateModalImproved as TileGenerateModal } from "./tile-generate-modal-improved";

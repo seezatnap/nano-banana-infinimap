@@ -4,7 +4,7 @@ An experimental AI-powered infinite map generator that creates seamless, neighbo
 
 **⚠️ Experimental Software**: This project is an experimental demonstration of the Gemini Nano Banana model's potential and should be used at your own risk.
 
-<img width="1502" height="510" alt="image" src="https://github.com/user-attachments/assets/45c19d3b-5f6a-44cc-a085-a51693f9250b" />
+<img width="1200" height="600" alt="Nano Banana Infinimap - Modern Interface" src="https://github.com/user-attachments/assets/1b6f9319-e0f0-4d54-abad-02761256555c" />
 
 ## TL;DR
 
@@ -12,18 +12,24 @@ This is an experiment I made to test Nano Banana's ability to consistently infil
 The solution I hit on was to break the image up into many tiles, of which a 3x3 grid of tiles can fit comfily into Gemini's input limits. I then radially blend the generations with the previous tiles (if one exists at that position) to handle minor differences.
 You can use it to generate gigantic, continuous maps at a reasonable cost.
 
-## Caveats
+## Technical Notes
 
-- To promote accurate infills I use a photoshop-esque background matte (i.e. checkerboard) which greatly improved Nano Banana's willingness to just fill in the blank spaces without changing anything. But, this is maybe only 75% accurate. Sometimes you just have to regenerate, especially if it's rendering something decent (just misaligned)
-- Sometimes nothing will render at all, and you still pay the nickle to Google for the render. Sad. When it repeatedly renders nothing either make your text prompt more explicit or move over a tile and try there.
-- This was vibe coded in an afternoon to test the concept, so I make no guarantees that the code is comprehensible or friendly. But you should be able to tweak the major knobs if you're so inclined.
+- **Infill Accuracy**: Uses a checkerboard background matte to improve Nano Banana's infilling behavior. Accuracy is ~75% - sometimes regeneration is needed for better alignment.
+- **Generation Reliability**: Occasionally renders may fail or produce unexpected results. Clear, descriptive prompts generally yield better results.
+- **Performance**: The 3×3 preview system helps avoid bad generations before committing changes, reducing waste and improving results.
+- **Code Quality**: Recently refactored with modern React patterns, TypeScript, performance optimizations, and modular component architecture.
 
 ## Features
 
-- 🗺️ Infinite(-ish), explorable map with Leaflet-based navigation
-- 🤖 AI-powered tile generation using Google's Nano Banana model
-- 🔗 Neighbor-aware generation for seamless tile edges
-- 💾 Local-first architecture with file-based storage
+- 🗺️ **Infinite Map**: Explorable map with smooth Leaflet-based navigation and URL state management
+- 🤖 **AI-Powered Generation**: Uses Google's Gemini Nano Banana model for intelligent tile creation
+- 🔗 **Neighbor-Aware**: Seamless tile edges with 3×3 context-aware generation
+- 🎨 **Interactive Preview**: Advanced 3×3 grid preview with selective tile application
+- 💾 **Local-First**: File-based storage with no external databases required
+- ⚡ **Performance Optimized**: React.memo, efficient re-renders, and smart caching
+- 🎯 **Modern UI**: Glass morphism design with intuitive hover states and controls
+- 🔄 **Real-time Updates**: Auto-refresh tiles when generation completes
+- 📍 **Shareable Links**: Position tracked in URL for easy sharing and bookmarking
 
 ## Installation
 
@@ -63,20 +69,42 @@ You can obtain a Gemini API key from [Google AI Studio](https://aistudio.google.
 yarn dev
 ```
 
-6. Open http://localhost:3000 in your browser
+6. Open http://localhost:3000/map in your browser
 
 ## Getting Started
 
-1. **Navigate the Map**: Use your mouse to pan and scroll to zoom
+1. **Navigate the Map**: 
+   - Use mouse to pan and scroll wheel to zoom
+   - Position information automatically updates in URL for easy sharing
+   - Glass panel shows current coordinates and zoom level
+
 2. **Generate Your First Tile**: 
-   - Zoom in to the maximum level (level 8)
-   - Enter a prompt like "isometric video game island" or "ancient temple ruins"
-   - Click on any empty tile to bring up the tile menu
-3. **Explore**: Generate more tiles to extend your canvas
-   - New tiles blend into old tiles, and you can either accept or reject them if it causes the older tiles to degrade
-   - Nano Banana isn't perfect, so you may need to re-roll a few times to get a good match for your existing tiles
-5. **Regenerate**: Click on existing tiles to regenerate, edit, or delete them
-   - Useful if you get a bad blend or generate a tile with neighbors outside the 3x3 grid. regen it, or delete and make a new one.
+   - App starts at maximum zoom level (level 8) - tiles are immediately interactive
+   - Hover over empty areas to see tile highlights
+   - Click any tile to open the interactive menu
+   - Choose "Generate" (green + button) for empty tiles
+
+3. **Advanced Generation**:
+   - Enter descriptive prompts like "mystical forest clearing" or "ancient stone bridge"
+   - Use the **3×3 Preview System**: See a full 3×3 grid before committing changes
+   - **Selective Application**: Choose which tiles to apply from the preview
+   - **Blending Modes**: Toggle between raw output and edge-blended results
+
+4. **Manage Existing Tiles**:
+   - Click existing tiles to access **Regenerate** (blue ↻ button) or **Delete** (orange D button)
+   - Delete removes tiles instantly without confirmation
+   - Regenerate opens the same preview system for existing content
+
+5. **Canvas Management**:
+   - **Canvas Menu**: Located in top-right corner (⚙️ icon)
+   - **Reset Canvas**: Clears all tiles and data for a fresh start
+   - **Refresh Page**: Reloads the application
+
+6. **Tips for Best Results**:
+   - Nano Banana works best with clear, descriptive prompts
+   - Use the preview system to avoid bad blends
+   - Regenerate tiles that don't match neighboring content
+   - The system automatically handles edge continuity
 
 ## Development
 
@@ -84,15 +112,87 @@ yarn dev
 yarn dev        # Start development server
 ```
 
+### Utility Scripts
+
+```bash
+# Reset canvas (clear all tiles and data)
+node scripts/reset-canvas.js
+
+# Create default tile (if missing)
+node scripts/create-default-tile.js
+```
+
+## Recent Improvements (v2.0)
+
+This project has been significantly refactored and improved:
+
+### 🏗️ **Architecture Improvements**
+- **Component Refactoring**: Large components broken down into focused, reusable pieces
+- **Custom Hooks**: Complex logic extracted into composable hooks (`useMapInteractions`, `useTileGeneration`, etc.)
+- **Performance Optimization**: React.memo, useMemo, and optimized re-renders
+- **TypeScript Enhancement**: Better type safety and developer experience
+
+### 🎨 **UI/UX Enhancements**
+- **Modern Design**: Glass morphism with backdrop blur effects
+- **Interactive Previews**: Advanced 3×3 grid with selective tile application
+- **Enhanced Feedback**: Better loading states, error handling, and user guidance
+- **Keyboard Shortcuts**: ⌘+Enter to generate, improved accessibility
+- **Canvas Management**: Easy reset functionality with confirmation dialog
+
+### 🚀 **Developer Experience**
+- **Modular Components**: Easy to maintain and extend
+- **Clean Code**: Removed debug logs, improved naming, consistent patterns
+- **Better Error Handling**: User-friendly error messages with retry options
+- **Documented Structure**: Clear component organization and responsibilities
+
 ### Project Structure
 
 ```
 infinimap/
-├── app/          # Next.js app directory
-├── components/   # React components
-├── lib/          # Core logic and utilities
-├── public/       # Static assets
-└── scripts/      # Utility scripts
+├── app/                           # Next.js 15 app directory
+│   ├── api/                      # API routes for tile operations
+│   │   ├── tiles/[z]/[x]/[y]/    # Serve tiles with caching
+│   │   ├── claim/[z]/[x]/[y]/    # Generate new tiles
+│   │   ├── edit-tile/[z]/[x]/[y]/ # 3×3 preview generation
+│   │   ├── confirm-edit/[z]/[x]/[y]/ # Apply selected tiles
+│   │   ├── delete/[z]/[x]/[y]/   # Delete tiles
+│   │   └── meta/[z]/[x]/[y]/     # Tile metadata
+│   └── map/                      # Map viewer page
+├── components/                    # React components (refactored)
+│   ├── hooks/                    # Custom React hooks
+│   │   ├── useMapInteractions.ts # Mouse events & tile selection
+│   │   ├── useMapPolling.ts     # Tile status polling
+│   │   ├── useTileGeneration.ts # Generation & preview logic
+│   │   ├── useTileRefresh.ts    # Tile layer refresh
+│   │   └── useUrlState.ts       # URL state management
+│   ├── map/                     # Map-specific components
+│   │   ├── map-controls.tsx     # Position display & instructions
+│   │   ├── tile-highlight.tsx   # Visual tile highlighting
+│   │   └── tile-menu.tsx        # Tile interaction menu
+│   ├── ui/                      # Reusable UI components
+│   │   ├── action-button.tsx    # Consistent button component
+│   │   ├── error-message.tsx    # User-friendly errors
+│   │   ├── glass-panel.tsx      # Modern floating panels
+│   │   ├── loading-spinner.tsx  # Configurable loading states
+│   │   ├── preview-controls.tsx # Preview settings & tabs
+│   │   ├── prompt-input.tsx     # Enhanced text input
+│   │   └── tile-grid.tsx        # Reusable tile grid display
+│   ├── tile-generate-modal/     # Generation modal system
+│   ├── tile-controls/           # Legacy tile controls
+│   └── map-client/              # Main map client
+├── lib/                         # Core logic and utilities
+│   ├── adapters/                # Swappable storage implementations
+│   │   ├── db.file.ts          # File-based tile metadata
+│   │   ├── queue.file.ts       # In-process job queue
+│   │   └── lock.file.ts        # File-based locks
+│   ├── generator.ts             # AI generation with Gemini
+│   ├── hashing.ts              # Content hashing & Merkle tree
+│   ├── storage.ts              # Tile image storage
+│   └── coords.ts               # Coordinate utilities
+├── public/                     # Static assets
+│   ├── default-tile.webp       # Placeholder tile
+│   └── style-control/          # Generation parameters
+└── scripts/                    # Utility scripts
 ```
 
 ## License
@@ -105,4 +205,11 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
-This is experimental software, and meant as a demonstration of Nano Banana more than an ongoing project. I'll try to fix bugs with the current state, but I'm not likely to accept new features. I encourage you to fork, copy, or vibe on top of this project and make it your own!
+While this started as an experimental demonstration of Nano Banana, it has evolved into a well-structured, maintainable codebase. The recent refactoring makes it much easier to:
+
+- **Extend functionality**: Modular components and hooks make adding features straightforward
+- **Fix bugs**: Clean architecture makes debugging and testing easier  
+- **Customize behavior**: Well-organized configuration and clear separation of concerns
+- **Fork and modify**: TypeScript interfaces and documented structure support customization
+
+Feel free to fork, extend, or build upon this project! The modular architecture should make it easy to adapt for your specific use cases.
