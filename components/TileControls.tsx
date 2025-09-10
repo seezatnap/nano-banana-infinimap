@@ -99,8 +99,8 @@ export default function TileControls({ x, y, z, exists, onGenerate, onRegenerate
               </Tooltip.Root>
 
               <AlertDialog.Portal>
-                <AlertDialog.Overlay className="fixed inset-0 bg-black/50 z-[10000]" />
-                <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl p-6 w-[90vw] max-w-[450px] max-h-[85vh] z-[10001]">
+                <AlertDialog.Overlay data-dialog-root className="fixed inset-0 bg-black/50 z-[10000]" />
+                <AlertDialog.Content data-dialog-root className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl p-6 w-[90vw] max-w-[450px] max-h-[85vh] z-[10001]">
                   <AlertDialog.Title className="text-lg font-semibold text-gray-900 m-0">Delete Tile?</AlertDialog.Title>
                   <AlertDialog.Description className="mt-2 mb-5 text-sm text-gray-600 leading-relaxed">
                     This will permanently delete the tile at position ({x}, {y}). This action cannot be undone.
