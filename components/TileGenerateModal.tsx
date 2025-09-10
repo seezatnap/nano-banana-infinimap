@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Check, Play, Settings } from "lucide-react";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import { Check, Play, Settings, X as Close, RotateCcw, Wand2 } from "lucide-react";
 import { z } from "zod";
 
 interface TileGenerateModalProps {
@@ -520,26 +521,67 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                         </div>
                       </div>
                     </div>
-                    {previewTiles && (
-                      <div className="text-xs text-gray-600 mt-2 space-y-1">
-                        <p>Selected {selectedPositions.size} of 9 tiles to apply.</p>
-                        <p>Preview mode: {blendPreview ? 'Blended (existing tiles fade to edges)' : 'Raw model output'}</p>
-                      </div>
-                    )}
+                    {/* Compact summary moved to footer toolbar */}
                   </Tabs.Content>
                 </Tabs.Root>
               </div>
 
-              {/* Drift correction controls */}
-              {previewTiles && (
-                <div className="px-0">
-                  <div className="flex items-center flex-wrap gap-2 text-xs">
-                    <span className="font-medium text-gray-700">Drift correction</span>
-                    <div className="flex items-center gap-1">
-                      <label className="text-gray-700">X</label>
+              {/* Compact Footer Toolbar */}
+              <div className="sticky bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t px-3 py-2 rounded-b-2xl">
+                <div className="flex items-center gap-3">
+                  {/* Left: status pills */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Tooltip.Provider delayDuration={300}>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <span className="inline-flex items-center gap-1 px-2 h-7 rounded-full bg-gray-100 text-gray-700 text-[11px] font-medium">
+                            {selectedPositions.size}/9
+                          </span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">
+                            Selected {selectedPositions.size} of 9 tiles to apply
+                            <Tooltip.Arrow className="fill-gray-900" />
+                          </Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <span className="inline-flex items-center px-2 h-7 rounded-full border text-[11px] text-gray-700">
+                            {blendPreview ? 'Blended' : 'Raw'}
+                          </span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">
+                            Preview mode: {blendPreview ? 'Blended (existing tiles fade to edges)' : 'Raw model output'}
+                            <Tooltip.Arrow className="fill-gray-900" />
+                          </Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+
+                      {typeof driftPeak === 'number' && (
+                        <span className="text-[11px] text-gray-500">Peak {driftPeak.toFixed(3)}</span>
+                      )}
+                    </Tooltip.Provider>
+                  </div>
+
+                  {/* Middle: drift group (only after preview) */}
+                  {previewTiles && (
+                    <div className="flex items-center gap-2">
+                      <Tooltip.Provider delayDuration={300}>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <span className="text-[11px] text-gray-700">X</span>
+                          </Tooltip.Trigger>
+                          <Tooltip.Portal>
+                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Drift X offset</Tooltip.Content>
+                          </Tooltip.Portal>
+                        </Tooltip.Root>
+                      </Tooltip.Provider>
                       <input
                         type="number"
-                        className="w-16 border rounded px-1 py-0.5"
+                        className="w-14 h-7 text-xs border rounded px-1"
                         value={offsetX}
                         onChange={async (e) => {
                           const v = parseInt(e.target.value, 10) || 0;
@@ -547,12 +589,19 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                           if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
                         }}
                       />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <label className="text-gray-700">Y</label>
+                      <Tooltip.Provider delayDuration={300}>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <span className="text-[11px] text-gray-700">Y</span>
+                          </Tooltip.Trigger>
+                          <Tooltip.Portal>
+                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Drift Y offset</Tooltip.Content>
+                          </Tooltip.Portal>
+                        </Tooltip.Root>
+                      </Tooltip.Provider>
                       <input
                         type="number"
-                        className="w-16 border rounded px-1 py-0.5"
+                        className="w-14 h-7 text-xs border rounded px-1"
                         value={offsetY}
                         onChange={async (e) => {
                           const v = parseInt(e.target.value, 10) || 0;
@@ -560,53 +609,93 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                           if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
                         }}
                       />
-                    </div>
-                    <button
-                      className="px-2 py-1 rounded border hover:bg-gray-50 disabled:opacity-50"
-                      disabled={!previewId || driftLoading}
-                      onClick={async () => {
-                        if (previewId) {
-                          const suggestion = await computeDrift(previewId);
-                          if (blendPreview) await loadPreviewTiles(previewId, true, suggestion?.tx, suggestion?.ty);
-                        }
-                      }}
-                    >{driftLoading ? 'Suggesting…' : 'Suggest'}</button>
-                    {typeof driftPeak === 'number' && (
-                      <span className="text-gray-500">Peak {driftPeak.toFixed(3)}</span>
-                    )}
-                    <span className="text-gray-500">
-                      Using {
-                        Array.from(selectedPositions).filter(k => !newTilePositions.has(k)).length
-                      } existing selected tile(s)
-                    </span>
-                  </div>
-                </div>
-              )}
+                      <Tooltip.Provider delayDuration={300}>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <button
+                              className="h-7 px-2 inline-flex items-center gap-1 rounded border hover:bg-gray-50 disabled:opacity-50"
+                              disabled={!previewId || driftLoading}
+                              onClick={async () => {
+                                if (previewId) {
+                                  const suggestion = await computeDrift(previewId);
+                                  if (blendPreview) await loadPreviewTiles(previewId, true, suggestion?.tx, suggestion?.ty);
+                                }
+                              }}
+                            >
+                              <Wand2 className="w-3.5 h-3.5" />
+                              <span className="text-[11px]">Suggest</span>
+                            </button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Portal>
+                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">
+                              Suggest drift correction from existing selection
+                              <Tooltip.Arrow className="fill-gray-900" />
+                            </Tooltip.Content>
+                          </Tooltip.Portal>
+                        </Tooltip.Root>
+                      </Tooltip.Provider>
 
-              {/* Footer */}
-              <div className="px-0 pb-0">
-                <div className="flex w-full items-center justify-end gap-2">
-                  <button
-                    onClick={handleClose}
-                    className="px-3 py-2 rounded-lg text-xs border border-gray-300 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    disabled={loading}
-                    className="px-3 py-2 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Reset Modal
-                  </button>
-                  <button
-                    onClick={handleAccept}
-                    disabled={loading || !previewTiles || selectedPositions.size === 0}
-                    className="px-3 py-2 rounded-lg text-xs bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    Accept Change
-                  </button>
+                      <Tooltip.Provider delayDuration={300}>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <span className="text-[11px] text-gray-500">
+                              Using {Array.from(selectedPositions).filter(k => !newTilePositions.has(k)).length} existing
+                            </span>
+                          </Tooltip.Trigger>
+                          <Tooltip.Portal>
+                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">
+                              Number of existing tiles used for drift suggestion
+                            </Tooltip.Content>
+                          </Tooltip.Portal>
+                        </Tooltip.Root>
+                      </Tooltip.Provider>
+                    </div>
+                  )}
+
+                  {/* Right: actions */}
+                  <div className="ml-auto flex items-center gap-1">
+                    <Tooltip.Provider delayDuration={300}>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            onClick={handleClose}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-md border hover:bg-gray-50"
+                            aria-label="Close"
+                          >
+                            <Close className="w-4 h-4" />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Cancel</Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            onClick={handleReset}
+                            disabled={loading}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-md border hover:bg-gray-50 disabled:opacity-50"
+                            aria-label="Reset"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Reset modal</Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+                    </Tooltip.Provider>
+
+                    <button
+                      onClick={handleAccept}
+                      disabled={loading || !previewTiles || selectedPositions.size === 0}
+                      className="h-8 px-3 rounded-md text-xs bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      Accept
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
