@@ -37,6 +37,9 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
   const [newTilePositions, setNewTilePositions] = useState<Set<string>>(new Set());
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>("preview");
+  // Nudge (drift correction) controls are optional and off by default
+  const [nudgeOpen, setNudgeOpen] = useState<boolean>(false);
+  const [nudgeApplied, setNudgeApplied] = useState<boolean>(false);
 
   // Load the 3x3 grid of tiles with selective cache busting
   useEffect(() => {
@@ -259,9 +262,8 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
       }
       const data = await response.json();
       setPreviewId(data.previewId);
-      // Run drift detection to pre-fill offsets based on selected existing tiles
-      const suggestion = await computeDrift(data.previewId);
-      await loadPreviewTiles(data.previewId, blendPreview, suggestion?.tx, suggestion?.ty);
+      // Default to no drift correction until user opts-in
+      await loadPreviewTiles(data.previewId, blendPreview);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -281,8 +283,8 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
         body: JSON.stringify({ 
           previewUrl: `/api/preview/${previewId}`,
           selectedPositions: Array.from(selectedPositions).map(s => { const [sx,sy] = s.split(',').map(Number); return { x: sx, y: sy }; }),
-          offsetX: blendPreview ? Math.round(offsetX) : undefined,
-          offsetY: blendPreview ? Math.round(offsetY) : undefined,
+          offsetX: blendPreview && nudgeApplied ? Math.round(offsetX) : undefined,
+          offsetY: blendPreview && nudgeApplied ? Math.round(offsetY) : undefined,
         }),
       });
       if (!response.ok) throw new Error("Failed to confirm edits");
@@ -313,8 +315,8 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
       }
       const data = await response.json();
       setPreviewId(data.previewId);
-      const suggestion = await computeDrift(data.previewId);
-      await loadPreviewTiles(data.previewId, blendPreview, suggestion?.tx, suggestion?.ty);
+      // Default to no drift correction until user opts-in
+      await loadPreviewTiles(data.previewId, blendPreview);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -331,6 +333,8 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
     setOffsetX(0);
     setOffsetY(0);
     setDriftPeak(null);
+    setNudgeOpen(false);
+    setNudgeApplied(false);
   };
 
   const handleClose = () => {
@@ -566,94 +570,36 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                     </Tooltip.Provider>
                   </div>
 
-                  {/* Middle: drift group (only after preview) */}
-                  {previewTiles && (
-                    <div className="flex items-center gap-2">
-                      <Tooltip.Provider delayDuration={300}>
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <span className="text-[11px] text-gray-700">X</span>
-                          </Tooltip.Trigger>
-                          <Tooltip.Portal>
-                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Drift X offset</Tooltip.Content>
-                          </Tooltip.Portal>
-                        </Tooltip.Root>
-                      </Tooltip.Provider>
-                      <input
-                        type="number"
-                        className="w-14 h-7 text-xs border rounded px-1"
-                        value={offsetX}
-                        onChange={async (e) => {
-                          const v = parseInt(e.target.value, 10) || 0;
-                          setOffsetX(v);
-                          if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
-                        }}
-                      />
-                      <Tooltip.Provider delayDuration={300}>
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <span className="text-[11px] text-gray-700">Y</span>
-                          </Tooltip.Trigger>
-                          <Tooltip.Portal>
-                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Drift Y offset</Tooltip.Content>
-                          </Tooltip.Portal>
-                        </Tooltip.Root>
-                      </Tooltip.Provider>
-                      <input
-                        type="number"
-                        className="w-14 h-7 text-xs border rounded px-1"
-                        value={offsetY}
-                        onChange={async (e) => {
-                          const v = parseInt(e.target.value, 10) || 0;
-                          setOffsetY(v);
-                          if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
-                        }}
-                      />
-                      <Tooltip.Provider delayDuration={300}>
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <button
-                              className="h-7 px-2 inline-flex items-center gap-1 rounded border hover:bg-gray-50 disabled:opacity-50"
-                              disabled={!previewId || driftLoading}
-                              onClick={async () => {
-                                if (previewId) {
-                                  const suggestion = await computeDrift(previewId);
-                                  if (blendPreview) await loadPreviewTiles(previewId, true, suggestion?.tx, suggestion?.ty);
-                                }
-                              }}
-                            >
-                              <Wand2 className="w-3.5 h-3.5" />
-                              <span className="text-[11px]">Suggest</span>
-                            </button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Portal>
-                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">
-                              Suggest drift correction from existing selection
-                              <Tooltip.Arrow className="fill-gray-900" />
-                            </Tooltip.Content>
-                          </Tooltip.Portal>
-                        </Tooltip.Root>
-                      </Tooltip.Provider>
-
-                      <Tooltip.Provider delayDuration={300}>
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <span className="text-[11px] text-gray-500">
-                              Using {Array.from(selectedPositions).filter(k => !newTilePositions.has(k)).length} existing
-                            </span>
-                          </Tooltip.Trigger>
-                          <Tooltip.Portal>
-                            <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">
-                              Number of existing tiles used for drift suggestion
-                            </Tooltip.Content>
-                          </Tooltip.Portal>
-                        </Tooltip.Root>
-                      </Tooltip.Provider>
-                    </div>
-                  )}
+                  {/* Middle section intentionally empty to keep toolbar single-line and compact. */}
 
                   {/* Right: actions */}
                   <div className="ml-auto flex items-center gap-1">
+                    {/* Nudge toggle */}
+                    <Tooltip.Provider delayDuration={300}>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <button
+                            className={`h-8 px-2 inline-flex items-center gap-1 rounded-md border hover:bg-gray-50 ${nudgeOpen ? 'bg-gray-50' : ''}`}
+                            onClick={() => {
+                              const next = !nudgeOpen;
+                              setNudgeOpen(next);
+                              if (!next) {
+                                // Reset when closing to ensure no accidental application
+                                setOffsetX(0); setOffsetY(0); setDriftPeak(null); setNudgeApplied(false);
+                              }
+                            }}
+                          >
+                            {/* simple icon via CSS caret */}
+                            <span className={`transition-transform ${nudgeOpen ? 'rotate-90' : ''}`}>▸</span>
+                            <span className="text-[11px]">Nudge</span>
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content sideOffset={6} className="z-[10002] bg-gray-900 text-white px-2 py-1 rounded text-xs">Optional drift correction</Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+                    </Tooltip.Provider>
+
                     <Tooltip.Provider delayDuration={300}>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
@@ -697,6 +643,58 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                     </button>
                   </div>
                 </div>
+                {/* Nudge expandable row */}
+                {nudgeOpen && previewTiles && (
+                  <div className="mt-2 flex items-center gap-2 text-xs">
+                    <span className="text-gray-700">Drift correction</span>
+                    <div className="flex items-center gap-1">
+                      <label className="text-gray-700">X</label>
+                      <input
+                        type="number"
+                        className="w-16 h-7 border rounded px-1"
+                        value={offsetX}
+                        onChange={async (e) => {
+                          const v = parseInt(e.target.value, 10) || 0;
+                          setOffsetX(v);
+                          if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <label className="text-gray-700">Y</label>
+                      <input
+                        type="number"
+                        className="w-16 h-7 border rounded px-1"
+                        value={offsetY}
+                        onChange={async (e) => {
+                          const v = parseInt(e.target.value, 10) || 0;
+                          setOffsetY(v);
+                          if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
+                        }}
+                      />
+                    </div>
+                    <button
+                      className="h-7 px-2 inline-flex items-center gap-1 rounded border hover:bg-gray-50 disabled:opacity-50"
+                      disabled={!previewId || driftLoading}
+                      onClick={async () => {
+                        if (previewId) {
+                          const suggestion = await computeDrift(previewId);
+                          setNudgeApplied(true);
+                          if (blendPreview) await loadPreviewTiles(previewId, true, suggestion?.tx, suggestion?.ty);
+                        }
+                      }}
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      Suggest
+                    </button>
+                    {typeof driftPeak === 'number' && (
+                      <span className="text-gray-500">Peak {driftPeak.toFixed(3)}</span>
+                    )}
+                    <span className="text-gray-500">
+                      Using {Array.from(selectedPositions).filter(k => !newTilePositions.has(k)).length} existing selected tile(s)
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
