@@ -4,6 +4,7 @@ import path from "path";
 import sharp from "sharp";
 import { readTileFile } from "@/lib/storage";
 import { TILE } from "@/lib/coords";
+import { alignCompositeOverBase, translateImage } from "@/lib/drift";
 
 const TILE_SIZE = TILE;
 
@@ -51,6 +52,11 @@ export async function GET(
     
     const url = new URL(req.url);
     const mode = url.searchParams.get('mode') || 'raw';
+    const align = url.searchParams.get('align') !== '0';
+    const txParam = url.searchParams.get('tx');
+    const tyParam = url.searchParams.get('ty');
+    const tx = txParam != null ? parseInt(txParam, 10) || 0 : null;
+    const ty = tyParam != null ? parseInt(tyParam, 10) || 0 : null;
     const previewPath = path.join(process.cwd(), '.temp', `${id}.webp`);
     
     let raw: Buffer;
@@ -67,8 +73,8 @@ export async function GET(
       });
     }
 
-    // Build blended preview: blend raw composite over existing tiles using
-    // a radial gradient mask centered on the 3x3 grid. Empty tiles show raw.
+    // Build blended preview: optionally align drift, then blend aligned raw over existing tiles
+    // using a radial gradient mask centered on the 3x3 grid. Empty tiles show raw.
     const parts = id.split('-');
     // id format: preview-z-x-y-timestamp
     const z = parseInt(parts[1], 10);
@@ -77,29 +83,43 @@ export async function GET(
     const gridSize = TILE_SIZE * 3;
     const mask = await createCircularGradientMask(gridSize);
 
-    // Slice raw into tiles and blend per-tile
-    const output: Buffer[][] = [];
-    for (let dy = 0; dy < 3; dy++) {
+    // Build base composite from existing tiles (transparent where missing)
+    const baseTiles: Buffer[][] = [];
+    for (let gy = 0; gy < 3; gy++) {
       const row: Buffer[] = [];
-      for (let dx = 0; dx < 3; dx++) {
-        const tileX = cx + dx - 1;
-        const tileY = cy + dy - 1;
+      for (let gx = 0; gx < 3; gx++) {
+        const tileX = cx + gx - 1;
+        const tileY = cy + gy - 1;
         const existing = await readTileFile(z, tileX, tileY);
-
-        const rawTile = await sharp(raw).extract({ left: dx*TILE_SIZE, top: dy*TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE }).webp().toBuffer();
-
         if (existing) {
-          const tileMask = await sharp(mask).extract({ left: dx*TILE_SIZE, top: dy*TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE }).png().toBuffer();
-          const masked = await sharp(rawTile).composite([{ input: tileMask, blend: 'dest-in' }]).webp().toBuffer();
-          const blended = await sharp(existing).resize(TILE_SIZE, TILE_SIZE, { fit: 'fill' }).composite([{ input: masked, blend: 'over' }]).webp().toBuffer();
-          row.push(blended);
+          row.push(await sharp(existing).resize(TILE_SIZE, TILE_SIZE, { fit: 'fill' }).png().toBuffer());
         } else {
-          row.push(rawTile);
+          row.push(await sharp({ create: { width: TILE_SIZE, height: TILE_SIZE, channels: 4, background: { r:0,g:0,b:0,alpha:0 } } }).png().toBuffer());
         }
       }
-      output.push(row);
+      baseTiles.push(row);
     }
-    const blendedComposite = await composite3x3(output);
+    const baseComposite = await composite3x3(baseTiles);
+
+    // Optionally translate or align raw over base
+    let effectiveRaw = raw;
+    if (tx != null && ty != null) {
+      // Use explicit offsets if provided
+      const gridSize = TILE_SIZE * 3;
+      effectiveRaw = await translateImage(raw, gridSize, gridSize, tx, ty);
+    } else if (align) {
+      try {
+        const { aligned } = await alignCompositeOverBase(baseComposite, raw, TILE_SIZE);
+        effectiveRaw = aligned;
+      } catch (e) {
+        // If alignment fails for any reason, continue with raw
+        effectiveRaw = raw;
+      }
+    }
+
+    // Apply radial mask to the (aligned) raw, then composite once over the base
+    const masked = await sharp(effectiveRaw).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
+    const blendedComposite = await sharp(baseComposite).composite([{ input: masked, blend: 'over' }]).webp().toBuffer();
     return new NextResponse(blendedComposite as any, {
       headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=60' },
     });

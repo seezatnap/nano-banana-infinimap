@@ -8,6 +8,8 @@ import { db } from "@/lib/adapters/db.file";
 import { TILE, parentOf } from "@/lib/coords";
 import { blake2sHex } from "@/lib/hashing";
 import { generateParentTile } from "@/lib/parentTiles";
+import { translateImage } from "@/lib/drift";
+import { alignCompositeOverBase } from "@/lib/drift";
 
 const TILE_SIZE = TILE;
 
@@ -22,6 +24,8 @@ const requestSchema = z.object({
     x: z.number(),
     y: z.number(),
   })).optional(),
+  offsetX: z.number().optional(),
+  offsetY: z.number().optional(),
 });
 
 // Extract individual tiles from 3x3 composite
@@ -77,7 +81,10 @@ export async function POST(
     const centerY = parseInt(params.y, 10);
     
     const body = await req.json();
-    const { previewUrl, applyToAllNew, newTilePositions, selectedPositions } = requestSchema.parse(body);
+    const { previewUrl, applyToAllNew, newTilePositions, selectedPositions, offsetX, offsetY } = requestSchema.parse(body);
+    const selectedSet = selectedPositions && selectedPositions.length > 0
+      ? new Set(selectedPositions.map(p => `${p.x},${p.y}`))
+      : null;
     
     // Extract preview ID from URL
     const previewMatch = previewUrl.match(/\/api\/preview\/(preview-[\d-]+)/);
@@ -96,11 +103,62 @@ export async function POST(
       return NextResponse.json({ error: "Preview not found" }, { status: 404 });
     }
     
-    // Extract individual tiles from the composite (raw model output)
+    // If user provided explicit offsets, translate composite accordingly.
+    if (typeof offsetX === 'number' && typeof offsetY === 'number' && !Number.isNaN(offsetX) && !Number.isNaN(offsetY)) {
+      const gridSize = TILE_SIZE * 3;
+      compositeBuffer = await translateImage(await sharp(compositeBuffer).png().toBuffer(), gridSize, gridSize, Math.round(offsetX), Math.round(offsetY));
+    } else {
+      // Otherwise optionally align composite if any selected tiles already exist
+      let anySelectedExisting = false;
+      if (selectedSet) {
+        for (const key of selectedSet) {
+          const [sx, sy] = key.split(',').map(Number);
+          const existsBuf = await readTileFile(z, sx, sy);
+          if (existsBuf) { anySelectedExisting = true; break; }
+        }
+      } else {
+        // If no explicit selection, consider the center tile
+        const existsBuf = await readTileFile(z, centerX, centerY);
+        anySelectedExisting = !!existsBuf;
+      }
+      // Use simple center-based alignment when applicable
+      const centerExisting = await readTileFile(z, centerX, centerY);
+      if (anySelectedExisting && centerExisting) {
+        try {
+          const baseTiles: Buffer[][] = [
+            [0,0,0].map(() => Buffer.alloc(0)) as unknown as Buffer[],
+            [0,0,0].map(() => Buffer.alloc(0)) as unknown as Buffer[],
+            [0,0,0].map(() => Buffer.alloc(0)) as unknown as Buffer[],
+          ];
+          // Fill as transparent, then place center existing
+          for (let gy = 0; gy < 3; gy++) {
+            for (let gx = 0; gx < 3; gx++) {
+              baseTiles[gy][gx] = await sharp({ create: { width: TILE_SIZE, height: TILE_SIZE, channels: 4, background: { r:0,g:0,b:0,alpha:0 } } }).png().toBuffer();
+            }
+          }
+          baseTiles[1][1] = await sharp(centerExisting).resize(TILE_SIZE, TILE_SIZE, { fit: 'fill' }).png().toBuffer();
+          const baseComposite = await sharp({ create: { width: TILE_SIZE*3, height: TILE_SIZE*3, channels: 4, background: { r:0,g:0,b:0,alpha:0 } } })
+            .composite([
+              { input: baseTiles[0][0], left: 0, top: 0 },
+              { input: baseTiles[0][1], left: TILE_SIZE, top: 0 },
+              { input: baseTiles[0][2], left: TILE_SIZE*2, top: 0 },
+              { input: baseTiles[1][0], left: 0, top: TILE_SIZE },
+              { input: baseTiles[1][1], left: TILE_SIZE, top: TILE_SIZE },
+              { input: baseTiles[1][2], left: TILE_SIZE*2, top: TILE_SIZE },
+              { input: baseTiles[2][0], left: 0, top: TILE_SIZE*2 },
+              { input: baseTiles[2][1], left: TILE_SIZE, top: TILE_SIZE*2 },
+              { input: baseTiles[2][2], left: TILE_SIZE*2, top: TILE_SIZE*2 },
+            ])
+            .png()
+            .toBuffer();
+          const { aligned } = await alignCompositeOverBase(baseComposite, compositeBuffer, TILE_SIZE);
+          compositeBuffer = aligned;
+        } catch {}
+      }
+    }
+
+    // Extract individual tiles from the (possibly aligned) composite
     const genTiles = await extractTiles(compositeBuffer);
-    const selectedSet = selectedPositions && selectedPositions.length > 0
-      ? new Set(selectedPositions.map(p => `${p.x},${p.y}`))
-      : null;
 
     // Build a radial mask once and slice per tile
     const mask3x3 = await createCircularGradientMask(TILE_SIZE * 3);

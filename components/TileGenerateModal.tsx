@@ -26,6 +26,10 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [blendPreview, setBlendPreview] = useState<boolean>(true);
+  const [offsetX, setOffsetX] = useState<number>(0);
+  const [offsetY, setOffsetY] = useState<number>(0);
+  const [driftPeak, setDriftPeak] = useState<number | null>(null);
+  const [driftLoading, setDriftLoading] = useState<boolean>(false);
   const [previewTiles, setPreviewTiles] = useState<string[][] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingTiles, setLoadingTiles] = useState(true);
@@ -139,8 +143,11 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
     });
   };
 
-  const loadPreviewTiles = async (id: string, blended: boolean) => {
-    const url = `/api/preview/${id}${blended ? '?mode=blended' : ''}`;
+  const loadPreviewTiles = async (id: string, blended: boolean, txOverride?: number, tyOverride?: number) => {
+    const tx = (txOverride != null ? Math.round(txOverride) : Math.round(offsetX)) || 0;
+    const ty = (tyOverride != null ? Math.round(tyOverride) : Math.round(offsetY)) || 0;
+    const qp = blended ? `?mode=blended&tx=${tx}&ty=${ty}` : '';
+    const url = `/api/preview/${id}${qp}`;
     setPreviewUrl(url);
     const extractedTiles = await extractTilesFromComposite(url);
     setPreviewTiles(extractedTiles);
@@ -158,6 +165,79 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
       }
       return sel;
     });
+  };
+
+  // Utility: turn a data URL into a Blob
+  const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  };
+
+  // Compute drift between existing center and raw generated center; set offsets
+  const computeDrift = async (id: string) => {
+    try {
+      setDriftLoading(true);
+      // Ensure we have raw generated tiles
+      const rawUrl = `/api/preview/${id}`; // raw mode
+      const rawTiles = await extractTilesFromComposite(rawUrl);
+      if (!tiles || !rawTiles) return;
+
+      // Choose only selected positions that already exist
+      const pairs: { ex: string; gen: string }[] = [];
+      const positionsUsed: string[] = [];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const tileX = x + dx;
+          const tileY = y + dy;
+          const key = `${tileX},${tileY}`;
+          const selected = selectedPositions.size > 0 ? selectedPositions.has(key) : true; // default to all existing
+          const exists = !newTilePositions.has(key);
+          if (!selected || !exists) continue;
+          const ex = tiles[dy + 1]?.[dx + 1];
+          const gen = rawTiles[dy + 1]?.[dx + 1];
+          if (ex && gen) {
+            pairs.push({ ex, gen });
+            positionsUsed.push(key);
+          }
+        }
+      }
+
+      if (pairs.length === 0) {
+        // No existing tiles in selection -> zero drift
+        setOffsetX(0); setOffsetY(0); setDriftPeak(null);
+        return { tx: 0, ty: 0 };
+      }
+
+      // Compute drift per pair and average
+      const dxs: number[] = [], dys: number[] = [], peaks: number[] = [];
+      for (const p of pairs) {
+        const form = new FormData();
+        form.append('a', await dataUrlToBlob(p.ex), 'a.png');
+        form.append('b', await dataUrlToBlob(p.gen), 'b.png');
+        const resp = await fetch('/api/drift', { method: 'POST', body: form });
+        if (!resp.ok) continue;
+        const json = await resp.json();
+        dxs.push(json.dx || 0);
+        dys.push(json.dy || 0);
+        if (typeof json.peakValue === 'number') peaks.push(json.peakValue);
+      }
+
+      if (dxs.length === 0) { setOffsetX(0); setOffsetY(0); setDriftPeak(null); return; }
+
+      const avg = (arr: number[]) => arr.reduce((a,b)=>a+b,0) / arr.length;
+      // Use measured drift directly as the adjustment so UI displays
+      // values in the same direction the overlay will move.
+      const tx = Math.round(avg(dxs));
+      const ty = Math.round(avg(dys));
+      setOffsetX(tx);
+      setOffsetY(ty);
+      setDriftPeak(peaks.length ? avg(peaks) : null);
+      return { tx, ty };
+    } catch (e) {
+      // ignore failures silently in UI
+    } finally {
+      setDriftLoading(false);
+    }
   };
 
   const handleEdit = async () => {
@@ -178,7 +258,9 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
       }
       const data = await response.json();
       setPreviewId(data.previewId);
-      await loadPreviewTiles(data.previewId, blendPreview);
+      // Run drift detection to pre-fill offsets based on selected existing tiles
+      const suggestion = await computeDrift(data.previewId);
+      await loadPreviewTiles(data.previewId, blendPreview, suggestion?.tx, suggestion?.ty);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -198,6 +280,8 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
         body: JSON.stringify({ 
           previewUrl: `/api/preview/${previewId}`,
           selectedPositions: Array.from(selectedPositions).map(s => { const [sx,sy] = s.split(',').map(Number); return { x: sx, y: sy }; }),
+          offsetX: blendPreview ? Math.round(offsetX) : undefined,
+          offsetY: blendPreview ? Math.round(offsetY) : undefined,
         }),
       });
       if (!response.ok) throw new Error("Failed to confirm edits");
@@ -228,7 +312,8 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
       }
       const data = await response.json();
       setPreviewId(data.previewId);
-      await loadPreviewTiles(data.previewId, blendPreview);
+      const suggestion = await computeDrift(data.previewId);
+      await loadPreviewTiles(data.previewId, blendPreview, suggestion?.tx, suggestion?.ty);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -242,6 +327,9 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
     setPreviewId(null);
     setPreviewTiles(null);
     setError(null);
+    setOffsetX(0);
+    setOffsetY(0);
+    setDriftPeak(null);
   };
 
   const handleClose = () => {
@@ -441,6 +529,59 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                   </Tabs.Content>
                 </Tabs.Root>
               </div>
+
+              {/* Drift correction controls */}
+              {previewTiles && (
+                <div className="px-0">
+                  <div className="flex items-center flex-wrap gap-2 text-xs">
+                    <span className="font-medium text-gray-700">Drift correction</span>
+                    <div className="flex items-center gap-1">
+                      <label className="text-gray-700">X</label>
+                      <input
+                        type="number"
+                        className="w-16 border rounded px-1 py-0.5"
+                        value={offsetX}
+                        onChange={async (e) => {
+                          const v = parseInt(e.target.value, 10) || 0;
+                          setOffsetX(v);
+                          if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <label className="text-gray-700">Y</label>
+                      <input
+                        type="number"
+                        className="w-16 border rounded px-1 py-0.5"
+                        value={offsetY}
+                        onChange={async (e) => {
+                          const v = parseInt(e.target.value, 10) || 0;
+                          setOffsetY(v);
+                          if (previewId && blendPreview) await loadPreviewTiles(previewId, true);
+                        }}
+                      />
+                    </div>
+                    <button
+                      className="px-2 py-1 rounded border hover:bg-gray-50 disabled:opacity-50"
+                      disabled={!previewId || driftLoading}
+                      onClick={async () => {
+                        if (previewId) {
+                          const suggestion = await computeDrift(previewId);
+                          if (blendPreview) await loadPreviewTiles(previewId, true, suggestion?.tx, suggestion?.ty);
+                        }
+                      }}
+                    >{driftLoading ? 'Suggesting…' : 'Suggest'}</button>
+                    {typeof driftPeak === 'number' && (
+                      <span className="text-gray-500">Peak {driftPeak.toFixed(3)}</span>
+                    )}
+                    <span className="text-gray-500">
+                      Using {
+                        Array.from(selectedPositions).filter(k => !newTilePositions.has(k)).length
+                      } existing selected tile(s)
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Footer */}
               <div className="px-0 pb-0">
