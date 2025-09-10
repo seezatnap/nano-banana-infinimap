@@ -423,7 +423,7 @@ export async function writeTileFile(z:number,x:number,y:number, buf:Buffer) {
 
 ```json
 {
-  "name": "islands-v1",
+  "name": "isomorphic-v1",
   "palette": {
     "deep": "#143C82",
     "shallow": "#1E5AA0",

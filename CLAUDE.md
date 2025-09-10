@@ -83,7 +83,7 @@ Returns tile image (WebP). Falls back to default-tile.webp if not generated.
 
 ### POST /api/claim/{z}/{x}/{y}
 ```json
-{ "prompt": "tropical island with palm trees" }
+{ "prompt": "isomorphic video game layout" }
 ```
 Initiates tile generation at max zoom level only.
 
@@ -115,7 +115,7 @@ NEXT_PUBLIC_ZMAX="8"       # Client-side max zoom
 ### Style Configuration (public/style-control/config.json)
 ```json
 {
-  "name": "islands-v1",
+  "name": "isomorphic-v1",
   "palette": {
     "deep": "#143C82",
     "shallow": "#1E5AA0",

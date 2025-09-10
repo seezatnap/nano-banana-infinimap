@@ -112,7 +112,7 @@ async function runModel(input: {
     const fullPrompt = `complete image. do not modify existing art's position or content.
 
 Style: ${input.styleName}
-Additional context: ${input.prompt || 'tropical islands with beaches and ocean'}`;
+Additional context: ${input.prompt || ''}`;
 
     const userParts: any[] = [
       { text: fullPrompt },
