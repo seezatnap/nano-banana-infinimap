@@ -401,7 +401,7 @@ export function TileGenerateModal({ open, onClose, x, y, z, onUpdate }: TileGene
                           Preview
                         </Tabs.Trigger>
                       </Tabs.List>
-                      <DropdownMenu.Root>
+                      <DropdownMenu.Root modal={false}>
                         <DropdownMenu.Trigger asChild>
                           <button
                             className="h-7 w-7 rounded-full border hover:bg-gray-50 inline-flex items-center justify-center"
