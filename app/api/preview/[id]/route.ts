@@ -117,9 +117,43 @@ export async function GET(
       }
     }
 
-    // Apply radial mask to the (aligned) raw, then composite once over the base
-    const masked = await sharp(effectiveRaw).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
-    const blendedComposite = await sharp(baseComposite).composite([{ input: masked, blend: 'over' }]).webp().toBuffer();
+    // Per-tile blend: mask only when an existing tile is present; otherwise show full generated tile
+    const output: Buffer[][] = [];
+    for (let dy = 0; dy < 3; dy++) {
+      const row: Buffer[] = [];
+      for (let dx = 0; dx < 3; dx++) {
+        const tileX = cx + dx - 1;
+        const tileY = cy + dy - 1;
+        const existing = await readTileFile(z, tileX, tileY);
+        const rawTile = await sharp(effectiveRaw)
+          .extract({ left: dx*TILE_SIZE, top: dy*TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE })
+          .webp()
+          .toBuffer();
+
+        if (existing) {
+          const tileMask = await sharp(mask)
+            .extract({ left: dx*TILE_SIZE, top: dy*TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE })
+            .png()
+            .toBuffer();
+          const masked = await sharp(rawTile)
+            .composite([{ input: tileMask, blend: 'dest-in' }])
+            .webp()
+            .toBuffer();
+          const blended = await sharp(existing)
+            .resize(TILE_SIZE, TILE_SIZE, { fit: 'fill' })
+            .composite([{ input: masked, blend: 'over' }])
+            .webp()
+            .toBuffer();
+          row.push(blended);
+        } else {
+          // No existing tile -> show full generated tile (unmasked)
+          row.push(rawTile);
+        }
+      }
+      output.push(row);
+    }
+
+    const blendedComposite = await composite3x3(output);
     return new NextResponse(blendedComposite as any, {
       headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'private, max-age=60' },
     });
